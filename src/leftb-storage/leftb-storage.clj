@@ -89,11 +89,13 @@
     db))
 
 
+;; TODO: Error handling?
 (defn db-sync [db]
   (when (.getDeferredWrite (db :conf))
     (.sync (db :db-handle))))
 
 
+;; TODO: Error handling?
 (defn db-close [db]
   ;; TODO: Deal with all open cursors on the database.
   (.close (db :db-handle)))
@@ -107,3 +109,18 @@
 
 ;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
 ;; args: {:txn handle :count false}
+
+
+;; TODO: Error handling?
+(declare bind-bytes)                    ; TODO: Clean me up.
+;; TODO: This should return a status of some kind!
+(defn put [db key data & opts-args]
+  (let [defaults   {:overwrite true
+                    :dup-data  true}
+        opts       (merge defaults (apply hash-map opts-args))
+        key-bytes  (bind-bytes key)
+        data-bytes (bind-bytes data)]
+    (cond
+      (not (opts :dup-data))  (.putNoDupData   (db :db-handle) key-bytes data-bytes)
+      (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) key-bytes data-bytes)
+      true (.put (db :db-handle) key-bytes data-bytes))))
