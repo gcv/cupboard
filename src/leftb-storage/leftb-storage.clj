@@ -97,3 +97,13 @@
 (defn db-close [db]
   ;; TODO: Deal with all open cursors on the database.
   (.close (db :db-handle)))
+
+
+;; TODO: (defn db-preload [db & preload-conf-args] ...)
+
+
+;; TODO: (defn db-remove [db-env name] ...)
+
+
+;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
+;; args: {:txn handle :count false}
