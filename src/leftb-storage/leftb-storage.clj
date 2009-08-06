@@ -49,6 +49,9 @@
 ;; TODO: Convenience with-db-env macro
 
 
+;; TODO: db-env-sync
+
+
 (defstruct db
   :env
   :name
@@ -117,7 +120,7 @@
 
 ;; TODO: Error handling?
 ;; TODO: This should return a status of some kind!
-(defn db-put [db key data & opts-args]
+(defn rput [db key data & opts-args]
   (let [defaults   {:overwrite true
                     :dup-data  true}
         opts       (merge defaults (apply hash-map opts-args))
@@ -131,7 +134,7 @@
 
 ;; TODO: Error handling?
 ;; TODO: This should return a status if entry not found, or something similar!
-(defn db-get [db key & opts-args]
+(defn rget [db key & opts-args]
   (let [defaults   {:search-both false
                     :data        nil
                     :lock-mode   nil ; TODO: LockMode.XYZ
@@ -143,3 +146,13 @@
         (.getSearchBoth (db :db-handle) key-entry data-entry (opts :lock-mode))
         (.get (db :db-handle) key-entry data-entry (opts :lock-mode)))
     (unmarshal-db-entry data-entry)))
+
+
+;; TODO: Error handling?
+;; TODO: This should return a status or return code.
+(defn rdelete [db key & opts-args]
+  ;; TODO: opts-args should have some way to distinguish between
+  ;; removing all matching records, or using a cursor to delete some
+  ;; of the duplicates.
+  (let [key-entry (marshal-db-entry key)]
+    (.delete (db :db-handle) key-entry)))
