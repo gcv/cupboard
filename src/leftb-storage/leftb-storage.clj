@@ -14,8 +14,8 @@
 
 ;; TODO: Error handling?
 (defn db-env-open [dir & conf-args]
-  (let [defaults {:allow-create false
-                  :read-only false
+  (let [defaults {:allow-create  false
+                  :read-only     false
                   :transactional false}
         dir      (c.c.java-utils/file dir)
         conf-map (merge defaults (apply hash-map conf-args))
@@ -62,13 +62,21 @@
     ;; flush deferred-write data, close handle, remove handle from db-env
     (db-close existing-db)
     (swap! (db-env :databases) dissoc name))
-  (let [defaults {:allow-create false
-                  :deferred-write false
-                  :temporary false}
+  (let [defaults {:allow-create      false
+                  :deferred-write    false
+                  :temporary         false
+                  :sorted-duplicates false
+                  :exclusive-create  false
+                  :read-only         false
+                  :transactional     false}
         conf-map (merge defaults (apply hash-map conf-args))
         conf     (doto (DatabaseConfig.)
-                   (.setAllowCreate   (conf-map :allow-create))
-                   (.setDeferredWrite (conf-map :deferred-write)))
+                   (.setAllowCreate      (conf-map :allow-create))
+                   (.setDeferredWrite    (conf-map :deferred-write))
+                   (.setSortedDuplicates (conf-map :sorted-duplicates))
+                   (.setExclusiveCreate  (conf-map :exclusive-create))
+                   (.setReadOnly         (conf-map :read-only))
+                   (.setTransactional    (conf-map :transactional)))
         db       (struct-map db
                    :env db-env
                    :name name
