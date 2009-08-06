@@ -111,16 +111,35 @@
 ;; args: {:txn handle :count false}
 
 
+(declare marshal-db-entry)                    ; TODO: Clean me up.
+(declare unmarshal-db-entry)                  ; TODO: Clean me up.
+
+
 ;; TODO: Error handling?
-(declare bind-bytes)                    ; TODO: Clean me up.
 ;; TODO: This should return a status of some kind!
-(defn put [db key data & opts-args]
+(defn db-put [db key data & opts-args]
   (let [defaults   {:overwrite true
                     :dup-data  true}
         opts       (merge defaults (apply hash-map opts-args))
-        key-bytes  (bind-bytes key)
-        data-bytes (bind-bytes data)]
+        key-entry  (marshal-db-entry key)
+        data-entry (marshal-db-entry data)]
     (cond
-      (not (opts :dup-data))  (.putNoDupData   (db :db-handle) key-bytes data-bytes)
-      (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) key-bytes data-bytes)
-      true (.put (db :db-handle) key-bytes data-bytes))))
+      (not (opts :dup-data))  (.putNoDupData   (db :db-handle) key-entry data-entry)
+      (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) key-entry data-entry)
+      true (.put (db :db-handle) key-entry data-entry))))
+
+
+;; TODO: Error handling?
+;; TODO: This should return a status if entry not found, or something similar!
+(defn db-get [db key & opts-args]
+  (let [defaults   {:search-both false
+                    :data        nil
+                    :lock-mode   nil ; TODO: LockMode.XYZ
+                    }
+        opts       (merge defaults (apply hash-map opts-args))
+        key-entry  (marshal-db-entry key)
+        data-entry (marshal-db-entry (opts :data))]
+    (if (opts :search-both)
+        (.getSearchBoth (db :db-handle) key-entry data-entry (opts :lock-mode))
+        (.get (db :db-handle) key-entry data-entry (opts :lock-mode)))
+    (unmarshal-db-entry data-entry)))
