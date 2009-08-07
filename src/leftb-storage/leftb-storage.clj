@@ -60,6 +60,12 @@
 
 
 ;; TODO: Error handling?
+(defn db-close [db]
+  ;; TODO: Deal with all open cursors on the database.
+  (.close (db :db-handle)))
+
+
+;; TODO: Error handling?
 (defn db-open [db-env name & conf-args]
   (when-let [existing-db (contains? @(db-env :databases) name)]
     ;; flush deferred-write data, close handle, remove handle from db-env
@@ -96,12 +102,6 @@
 (defn db-sync [db]
   (when (.getDeferredWrite (db :conf))
     (.sync (db :db-handle))))
-
-
-;; TODO: Error handling?
-(defn db-close [db]
-  ;; TODO: Deal with all open cursors on the database.
-  (.close (db :db-handle)))
 
 
 ;; TODO: (defn db-preload [db & preload-conf-args] ...)
