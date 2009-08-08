@@ -1,7 +1,7 @@
 (ns cupboard
   (:use [cupboard.marshal])
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
-  (:import [com.sleepycat.je DatabaseException])
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
   (:import [com.sleepycat.je DatabaseConfig Database]))
 
@@ -124,9 +124,9 @@
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
     (cond
-      (not (opts :dup-data))  (.putNoDupData   (db :db-handle) key-entry data-entry)
-      (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) key-entry data-entry)
-      true (.put (db :db-handle) key-entry data-entry))))
+      (not (opts :dup-data))  (.putNoDupData   (db :db-handle) nil key-entry data-entry)
+      (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) nil key-entry data-entry)
+      true (.put (db :db-handle) nil key-entry data-entry))))
 
 
 ;; TODO: Error handling?
@@ -134,14 +134,15 @@
 (defn rget [db key & opts-args]
   (let [defaults   {:search-both false
                     :data        nil
-                    :lock-mode   nil ; TODO: LockMode.XYZ
-                    }
+                    :lock-mode   LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
         key-entry  (marshal-db-entry key)
-        data-entry (marshal-db-entry (opts :data))]
+        data-entry (if (opts :data)
+                       (marshal-db-entry (opts :data))
+                       (DatabaseEntry.))]
     (if (opts :search-both)
-        (.getSearchBoth (db :db-handle) key-entry data-entry (opts :lock-mode))
-        (.get (db :db-handle) key-entry data-entry (opts :lock-mode)))
+        (.getSearchBoth (db :db-handle) nil key-entry data-entry (opts :lock-mode))
+        (.get (db :db-handle) nil key-entry data-entry (opts :lock-mode)))
     (unmarshal-db-entry data-entry)))
 
 

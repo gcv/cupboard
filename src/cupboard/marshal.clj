@@ -65,7 +65,7 @@
 (def-primitive-unmarshal-helper-method java.lang.Character .readChar)
 (def-primitive-unmarshal-helper-method java.lang.Byte .readByte)
 (def-primitive-unmarshal-helper-method java.lang.Short .readShort)
-(def-primitive-unmarshal-helper-method java.lang.Integer .readInteger)
+(def-primitive-unmarshal-helper-method java.lang.Integer .readInt)
 (def-primitive-unmarshal-helper-method java.lang.Long .readLong)
 (def-primitive-unmarshal-helper-method java.math.BigInteger .readBigInteger)
 (def-primitive-unmarshal-helper-method java.lang.Double .readSortedDouble)
