@@ -1,4 +1,5 @@
-(ns leftb-storage
+(ns cupboard
+  (:use [cupboard.marshal])
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
   (:import [com.sleepycat.je DatabaseException])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
@@ -112,10 +113,6 @@
 
 ;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
 ;; args: {:txn handle :count false}
-
-
-(declare marshal-db-entry)                    ; TODO: Clean me up.
-(declare unmarshal-db-entry)                  ; TODO: Clean me up.
 
 
 ;; TODO: Error handling?
