@@ -53,6 +53,8 @@
 (def-primitive-marshal-method java.math.BigInteger .writeBigInteger)
 (def-primitive-marshal-method java.lang.Double .writeSortedDouble)
 (def-primitive-marshal-method java.lang.String .writeString)
+(def-primitive-marshal-method clojure.lang.Keyword
+  (fn [tuple-output data] (.writeString tuple-output (subs (str data) 1))))
 
 
 (defmulti unmarshal-db-entry-helper (fn [native-type _] native-type))
@@ -70,6 +72,8 @@
 (def-primitive-unmarshal-helper-method java.math.BigInteger .readBigInteger)
 (def-primitive-unmarshal-helper-method java.lang.Double .readSortedDouble)
 (def-primitive-unmarshal-helper-method java.lang.String .readString)
+(def-primitive-unmarshal-helper-method clojure.lang.Keyword
+  (fn [tuple-input] (keyword (.readString tuple-input))))
 
 (defn unmarshal-db-entry [db-entry]
   (let [tuple-input (TupleBinding/entryToInput db-entry)
