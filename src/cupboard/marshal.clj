@@ -12,76 +12,107 @@
 ;; TODO: Handle Java collections?
 
 
-;; TODO: Verify the correctness of using array-map here and the
-;; performance of the lookups (all linear, might be good for such a
-;; small map).
-(def type-codes-by-type
-     (array-map java.lang.Boolean    1
-                java.lang.Character  2
-                java.lang.Byte       3
-                java.lang.Short      4
-                java.lang.Integer    5
-                java.lang.Long       6
-                java.math.BigInteger 7
-                java.lang.Double     8
-                java.lang.String     9
-                clojure.lang.Keyword 10
-                clojure.lang.Symbol  11))
+(def *clj-types* [nil
+                  java.lang.Boolean
+                  java.lang.Character
+                  java.lang.Byte
+                  java.lang.Short
+                  java.lang.Integer
+                  java.lang.Long
+                  java.math.BigInteger
+                  java.lang.Double
+                  java.lang.String
+                  clojure.lang.Keyword
+                  clojure.lang.Symbol
+                  :list
+                  :vector
+                  :map
+                  :set])
 
-(def type-codes-by-code
-     (zipmap (vals type-codes-by-type) (keys type-codes-by-type)))
+(def *clj-type-codes* (zipmap *clj-types* (range 0 (count *clj-types*))))
 
 
-(defmulti marshal-db-entry class)
+(defn clj-type [data]
+  (condp #(%1 %2) data
+    map? :map
+    set? :set
+    list? :list
+    vector? :vector
+    (class data)))
 
-(defmacro def-primitive-marshal-method [java-type write-method]
-  `(defmethod marshal-db-entry ~java-type [data#]
-     (let [db-entry#     (DatabaseEntry.)
-           tuple-output# (TupleOutput.)]
-       (.writeUnsignedByte tuple-output# (type-codes-by-type ~java-type))
-       (~write-method tuple-output# data#)
-       (TupleBinding/outputToEntry tuple-output# db-entry#)
-       db-entry#)))
 
-(def-primitive-marshal-method java.lang.Boolean .writeBoolean)
-(def-primitive-marshal-method java.lang.Character
+(defmulti marshal-write (fn [tuple-output data] (clj-type data)))
+
+(defmacro def-marshal-write [java-type write-method]
+  `(defmethod marshal-write ~java-type [tuple-output# data#]
+     (.writeUnsignedByte tuple-output# (*clj-type-codes* ~java-type))
+     (~write-method tuple-output# data#)))
+
+(def-marshal-write java.lang.Boolean .writeBoolean)
+(def-marshal-write java.lang.Boolean .writeBoolean)
+(def-marshal-write java.lang.Character
   (fn [tuple-output data] (.writeChar tuple-output (int data))))
-(def-primitive-marshal-method java.lang.Byte .writeByte)
-(def-primitive-marshal-method java.lang.Short .writeShort)
-(def-primitive-marshal-method java.lang.Integer .writeInt)
-(def-primitive-marshal-method java.lang.Long .writeLong)
-(def-primitive-marshal-method java.math.BigInteger .writeBigInteger)
-(def-primitive-marshal-method java.lang.Double .writeSortedDouble)
-(def-primitive-marshal-method java.lang.String .writeString)
-(def-primitive-marshal-method clojure.lang.Keyword
+(def-marshal-write java.lang.Byte .writeByte)
+(def-marshal-write java.lang.Short .writeShort)
+(def-marshal-write java.lang.Integer .writeInt)
+(def-marshal-write java.lang.Long .writeLong)
+(def-marshal-write java.math.BigInteger .writeBigInteger)
+(def-marshal-write java.lang.Double .writeSortedDouble)
+(def-marshal-write java.lang.String .writeString)
+
+(def-marshal-write clojure.lang.Keyword
   (fn [tuple-output data] (.writeString tuple-output (subs (str data) 1))))
-(def-primitive-marshal-method clojure.lang.Symbol
+
+(def-marshal-write clojure.lang.Symbol
   (fn [tuple-output data] (.writeString tuple-output (str data))))
 
+(def-marshal-write :list
+  (fn [tuple-output data]
+    (marshal-write tuple-output (count data))
+    (doseq [e data] (marshal-write tuple-output e))))
 
-(defmulti unmarshal-db-entry-helper (fn [native-type _] native-type))
+(defn marshal-db-entry [data]
+  (let [db-entry     (DatabaseEntry.)
+        tuple-output (TupleOutput.)]
+    (marshal-write tuple-output data)
+    (TupleBinding/outputToEntry tuple-output db-entry)
+    db-entry))
 
-(defmacro def-primitive-unmarshal-helper-method [java-type read-method]
-  `(defmethod unmarshal-db-entry-helper ~java-type [native-type# tuple-input#]
+
+(defmulti unmarshal-read
+  (fn [tuple-input]
+    (let [type-byte (.readUnsignedByte tuple-input)]
+      (nth *clj-types* type-byte))))
+
+(defmacro def-unmarshal-read [java-type read-method]
+  `(defmethod unmarshal-read ~java-type [tuple-input#]
      (~read-method tuple-input#)))
 
-(def-primitive-unmarshal-helper-method java.lang.Boolean .readBoolean)
-(def-primitive-unmarshal-helper-method java.lang.Character .readChar)
-(def-primitive-unmarshal-helper-method java.lang.Byte .readByte)
-(def-primitive-unmarshal-helper-method java.lang.Short .readShort)
-(def-primitive-unmarshal-helper-method java.lang.Integer .readInt)
-(def-primitive-unmarshal-helper-method java.lang.Long .readLong)
-(def-primitive-unmarshal-helper-method java.math.BigInteger .readBigInteger)
-(def-primitive-unmarshal-helper-method java.lang.Double .readSortedDouble)
-(def-primitive-unmarshal-helper-method java.lang.String .readString)
-(def-primitive-unmarshal-helper-method clojure.lang.Keyword
+(def-unmarshal-read java.lang.Boolean .readBoolean)
+(def-unmarshal-read java.lang.Character .readChar)
+(def-unmarshal-read java.lang.Byte .readByte)
+(def-unmarshal-read java.lang.Short .readShort)
+(def-unmarshal-read java.lang.Integer .readInt)
+(def-unmarshal-read java.lang.Long .readLong)
+(def-unmarshal-read java.math.BigInteger .readBigInteger)
+(def-unmarshal-read java.lang.Double .readSortedDouble)
+(def-unmarshal-read java.lang.String .readString)
+
+(def-unmarshal-read clojure.lang.Keyword
   (fn [tuple-input] (keyword (.readString tuple-input))))
+
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!
-(def-primitive-unmarshal-helper-method clojure.lang.Symbol
+(def-unmarshal-read clojure.lang.Symbol
   (fn [tuple-input] (symbol (.readString tuple-input))))
 
+(def-unmarshal-read :list
+  (fn [tuple-input]
+    (let [len (unmarshal-read tuple-input)]
+      (loop [i 0 res (list)]
+        (if (>= i len)
+            (reverse res)
+            (recur (inc i) (conj res (unmarshal-read tuple-input))))))))
+
 (defn unmarshal-db-entry [db-entry]
-  (let [tuple-input (TupleBinding/entryToInput db-entry)
-        type-byte   (.readUnsignedByte tuple-input)
-        native-type (type-codes-by-code type-byte)]
-    (unmarshal-db-entry-helper native-type tuple-input)))
+  (let [tuple-input (TupleBinding/entryToInput db-entry)]
+    (unmarshal-read tuple-input)))
