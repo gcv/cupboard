@@ -69,6 +69,12 @@
   (def-marshal-write :list seq-write)
   (def-marshal-write :vector seq-write)
   (def-marshal-write :set seq-write))
+(def-marshal-write :map
+  (fn [tuple-output data]
+    (marshal-write tuple-output (count data))
+    (doseq [[key value] data]
+      (marshal-write tuple-output key)
+      (marshal-write tuple-output value))))
 
 (defn marshal-db-entry [data]
   (let [db-entry     (DatabaseEntry.)
@@ -111,6 +117,15 @@
   (def-unmarshal-read :list (seq-read-fn (list) reverse))
   (def-unmarshal-read :vector (seq-read-fn [] identity))
   (def-unmarshal-read :set (seq-read-fn #{} identity)))
+(def-unmarshal-read :map
+  (fn [tuple-input]
+    (let [len (unmarshal-read tuple-input)]
+      (loop [i 0 res (hash-map)]
+        (if (>= i len)
+            res
+            (recur (inc i) (assoc res
+                             (unmarshal-read tuple-input)
+                             (unmarshal-read tuple-input))))))))
 
 (defn unmarshal-db-entry [db-entry]
   (let [tuple-input (TupleBinding/entryToInput db-entry)]
