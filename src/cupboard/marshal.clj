@@ -59,17 +59,16 @@
 (def-marshal-write java.math.BigInteger .writeBigInteger)
 (def-marshal-write java.lang.Double .writeSortedDouble)
 (def-marshal-write java.lang.String .writeString)
-
 (def-marshal-write clojure.lang.Keyword
   (fn [tuple-output data] (.writeString tuple-output (subs (str data) 1))))
-
 (def-marshal-write clojure.lang.Symbol
   (fn [tuple-output data] (.writeString tuple-output (str data))))
-
-(def-marshal-write :list
-  (fn [tuple-output data]
-    (marshal-write tuple-output (count data))
-    (doseq [e data] (marshal-write tuple-output e))))
+(letfn [(seq-write [tuple-output data]
+          (marshal-write tuple-output (count data))
+          (doseq [e data] (marshal-write tuple-output e)))]
+  (def-marshal-write :list seq-write)
+  (def-marshal-write :vector seq-write)
+  (def-marshal-write :set seq-write))
 
 (defn marshal-db-entry [data]
   (let [db-entry     (DatabaseEntry.)
@@ -97,21 +96,21 @@
 (def-unmarshal-read java.math.BigInteger .readBigInteger)
 (def-unmarshal-read java.lang.Double .readSortedDouble)
 (def-unmarshal-read java.lang.String .readString)
-
 (def-unmarshal-read clojure.lang.Keyword
   (fn [tuple-input] (keyword (.readString tuple-input))))
-
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!
 (def-unmarshal-read clojure.lang.Symbol
   (fn [tuple-input] (symbol (.readString tuple-input))))
-
-(def-unmarshal-read :list
-  (fn [tuple-input]
-    (let [len (unmarshal-read tuple-input)]
-      (loop [i 0 res (list)]
-        (if (>= i len)
-            (reverse res)
-            (recur (inc i) (conj res (unmarshal-read tuple-input))))))))
+(letfn [(seq-read-fn [starting-value after-fn]
+          (fn [tuple-input]
+            (let [len (unmarshal-read tuple-input)]
+              (loop [i 0 res starting-value]
+                (if (>= i len)
+                    (after-fn res)
+                    (recur (inc i) (conj res (unmarshal-read tuple-input))))))))]
+  (def-unmarshal-read :list (seq-read-fn (list) reverse))
+  (def-unmarshal-read :vector (seq-read-fn [] identity))
+  (def-unmarshal-read :set (seq-read-fn #{} identity)))
 
 (defn unmarshal-db-entry [db-entry]
   (let [tuple-input (TupleBinding/entryToInput db-entry)]
