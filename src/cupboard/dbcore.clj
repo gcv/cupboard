@@ -1,5 +1,6 @@
-(ns cupboard
+(ns cupboard.dbcore
   (:use [cupboard.marshal])
+  (:use [clojure.contrib.profile])
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
@@ -121,12 +122,12 @@
   (let [defaults   {:overwrite true
                     :dup-data  true}
         opts       (merge defaults (apply hash-map opts-args))
-        key-entry  (marshal-db-entry key)
-        data-entry (marshal-db-entry data)]
+        key-entry  (prof :marshaling-keys (marshal-db-entry key))
+        data-entry (prof :marshaling-data (marshal-db-entry data))]
     (cond
       (not (opts :dup-data))  (.putNoDupData   (db :db-handle) nil key-entry data-entry)
       (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) nil key-entry data-entry)
-      true (.put (db :db-handle) nil key-entry data-entry))))
+      true (prof :put (.put (db :db-handle) nil key-entry data-entry)))))
 
 
 ;; TODO: Error handling?
@@ -136,14 +137,14 @@
                     :data        nil
                     :lock-mode   LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
-        key-entry  (marshal-db-entry key)
+        key-entry  (prof :marshaling-keys (marshal-db-entry key))
         data-entry (if (opts :data)
-                       (marshal-db-entry (opts :data))
+                       (prof :marshaling-data (marshal-db-entry (opts :data)))
                        (DatabaseEntry.))]
     (if (opts :search-both)
         (.getSearchBoth (db :db-handle) nil key-entry data-entry (opts :lock-mode))
-        (.get (db :db-handle) nil key-entry data-entry (opts :lock-mode)))
-    (unmarshal-db-entry data-entry)))
+        (prof :get (.get (db :db-handle) nil key-entry data-entry (opts :lock-mode))))
+    (prof :unmarshaling-data (unmarshal-db-entry data-entry))))
 
 
 ;; TODO: Error handling?

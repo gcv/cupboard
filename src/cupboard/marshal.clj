@@ -20,6 +20,7 @@
                   java.lang.Integer
                   java.lang.Long
                   java.math.BigInteger
+                  clojure.lang.Ratio
                   java.lang.Double
                   java.lang.String
                   clojure.lang.Keyword
@@ -57,6 +58,10 @@
 (def-marshal-write java.lang.Integer .writeInt)
 (def-marshal-write java.lang.Long .writeLong)
 (def-marshal-write java.math.BigInteger .writeBigInteger)
+(def-marshal-write clojure.lang.Ratio
+  (fn [tuple-output data]
+    (marshal-write tuple-output (.numerator data))
+    (marshal-write tuple-output (.denominator data))))
 (def-marshal-write java.lang.Double .writeSortedDouble)
 (def-marshal-write java.lang.String .writeString)
 (def-marshal-write clojure.lang.Keyword
@@ -100,6 +105,10 @@
 (def-unmarshal-read java.lang.Integer .readInt)
 (def-unmarshal-read java.lang.Long .readLong)
 (def-unmarshal-read java.math.BigInteger .readBigInteger)
+(def-unmarshal-read clojure.lang.Ratio
+  (fn [tuple-input] (clojure.lang.Ratio.
+                     (unmarshal-read tuple-input)
+                     (unmarshal-read tuple-input))))
 (def-unmarshal-read java.lang.Double .readSortedDouble)
 (def-unmarshal-read java.lang.String .readString)
 (def-unmarshal-read clojure.lang.Keyword
@@ -107,6 +116,10 @@
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!
 (def-unmarshal-read clojure.lang.Symbol
   (fn [tuple-input] (symbol (.readString tuple-input))))
+;; TODO: When available, use a transient data structure to put
+;; together sequences in the loop (as is, it creates quite a bit of
+;; garbage). Alternatively, maybe use a for form if it is more
+;; efficient?
 (letfn [(seq-read-fn [starting-value after-fn]
           (fn [tuple-input]
             (let [len (unmarshal-read tuple-input)]
