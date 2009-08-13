@@ -4,6 +4,7 @@
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
   (:import [com.sleepycat.je Database DatabaseConfig])
+  (:import [com.sleepycat.je Cursor CursorConfig])
   (:import [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
 
 
@@ -76,6 +77,9 @@
 
 
 ;; TODO: Error handling?
+;; TODO: Add support for setting :btree-comparator and :duplicate-comparator
+;; TODO: Add support for overriding :btree-comparator and :duplicate-comparator
+;; (DatabaseConfig.setOverrideBtreeCompatator(), etc.)
 (defn db-open [db-env name & conf-args]
   (let [defaults {:allow-create      false
                   :deferred-write    false
@@ -117,6 +121,38 @@
 
 ;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
 ;; args: {:txn handle :count false}
+
+
+
+;;; ----------------------------------------------------------------------
+;;; primary database cursors
+;;; ----------------------------------------------------------------------
+
+(defstruct db-cursor
+  :db
+  :conf
+  :db-cursor-handle)
+
+
+;; TODO: Error handling?
+;; TODO: Track cursors in the db struct!!! Clean them up when done!!!
+(defn db-cursor-open [db & conf-args]
+  (let [defaults {:read-committed   true
+                  :read-uncommitted false}
+        conf     (merge defaults (apply hash-map conf-args))
+        conf-obj (doto (CursorConfig.)
+                   (.setReadCommitted   (conf :read-committed))
+                   (.setReadUncommitted (conf :read-uncommitted)))]
+    (struct-map db-cursor
+      :db   db
+      :conf conf
+      :db-cursor-handle (.openCursor (db :db-handle) nil conf-obj))))
+
+
+;; TODO: Error handling?
+;; TODO: REMOVE CLOSED CURSORS FROM THE db struct!!!
+(defn db-cursor-close [db-cursor]
+  (.close (db-cursor :db-cursor-handle)))
 
 
 

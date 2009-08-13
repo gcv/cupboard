@@ -25,3 +25,15 @@
                (rget db1 (str i))))
     (db-close db1)
     (db-env-close e1)))
+
+
+(defn test-cursor-1 []
+  (let [e1   (db-env-open "/tmp/3" :allow-create true)
+        db1  (db-open e1 "db1" :allow-create true)
+        data #{:one 1 :two 2 :three "three" :four "five six seven eight"}
+        cur1 (db-cursor-open db1)]
+    (rput db1 "one" data)
+    (rget db1 "one")
+    (db-cursor-close cur1)
+    (db-close db1)
+    (db-env-close e1)))
