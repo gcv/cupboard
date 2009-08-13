@@ -10,7 +10,7 @@
     (profile (dotimes [i 10000]
                (db-put db1 (str i) data)))
     (profile (dotimes [i 10000]
-               (db-get db1 :key (str i))))
+               (db-get db1 (str i))))
     (db-close db1)
     (db-env-close e1)))
 
@@ -22,7 +22,7 @@
     (profile (dotimes [i 10000]
                (db-put db1 (str i) data)))
     (profile (dotimes [i 10000]
-               (db-get db1 :key (str i))))
+               (db-get db1 (str i))))
     (db-close db1)
     (db-env-close e1)))
 
@@ -33,7 +33,7 @@
         data #{:one 1 :two 2 :three "three" :four "five six seven eight"}
         cur1 (db-cursor-open db1)]
     (db-put db1 "one" data)
-    (db-get db1 :key "one")
+    (prn (db-get db1 "one"))
     (db-cursor-close cur1)
     (db-close db1)
     (db-env-close e1)))
@@ -51,7 +51,7 @@
     (db-put db1 "c" data3)
     (db-put db1 "d" data4)
     (let [cur1 (db-cursor-open db1)]
-      (prn (db-cursor-get cur1 :key "a"))
+      (prn (db-cursor-get cur1 "a"))
       (db-cursor-close cur1))
     (db-close db1)
     (db-env-close e1)))

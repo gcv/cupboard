@@ -143,12 +143,11 @@
 
 ;; TODO: Error handling?
 ;; TODO: This should return a status if entry not found, or something similar!
-(defn db-get [db & opts-args]
-  (let [defaults   {:key       nil
-                    :data      nil
+(defn db-get [db key & opts-args]
+  (let [defaults   {:data      nil
                     :lock-mode LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
-        key-entry  (marshal-db-entry (opts :key))
+        key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry (opts :data))]
     (if (not (nil? (opts :data)))
         (.getSearchBoth (db :db-handle) nil key-entry data-entry (opts :lock-mode))
@@ -198,9 +197,8 @@
 ;; TODO: Convenience with-db-cursor macro
 
 
-(defn db-cursor-get [db-cursor & opts-args]
-  (let [defaults     {:key       nil
-                      :data      nil
+(defn db-cursor-get [db-cursor key & opts-args]
+  (let [defaults     {:data      nil
                       :direction :forward   ; or :back
                       :exact     false
                       :skip-dups false
@@ -210,7 +208,7 @@
         exact        (opts :exact)
         skip-dups    (opts :skip-dups)
         lock-mode    (opts :lock-mode)
-        key-entry    (marshal-db-entry (opts :key))
+        key-entry    (marshal-db-entry key)
         data-entry   (marshal-db-entry (opts :data))
         search-fn    (cond (and (nil? (opts :data)) :exact)       #(.getSearchKey %1 %2 %3 %4)
                            (nil? (opts :data))                    #(.getSearchKeyRange %1 %2 %3 %4)
@@ -231,6 +229,16 @@
                     (lazy-seq))))]
       (cursor-seq search-fn))))
 ;; TODO: What about closing the cursor?
+
+
+;; TODO: db-cursor-put
+
+
+;; TODO: db-cursor-delete
+
+
+;; TODO: Think about db-cursor-replace to overwrite the current
+;; location..? Probably not possible.
 
 
 
@@ -291,7 +299,7 @@
 
 
 ;; TODO: Error handling?
-(defn rget-sec [db-sec search-key & opts-args]
+(defn db-sec-get [db-sec search-key & opts-args]
   (let [defaults         {:lock-mode LockMode/DEFAULT}
         opts             (merge defaults (apply hash-map opts-args))
         search-key-entry (marshal-db-entry search-key)
@@ -303,6 +311,6 @@
 
 
 ;; TODO: Error handling?
-(defn rdelete-sec [db-sec search-key]
+(defn db-sec-delete [db-sec search-key]
   (let [search-entry (marshal-db-entry search-key)]
     (.delete (db-sec :db-sec-handle) nil search-entry)))
