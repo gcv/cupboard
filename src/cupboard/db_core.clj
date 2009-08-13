@@ -1,7 +1,7 @@
 (ns cupboard.db-core
   (:use [cupboard.marshal])
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
-  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode OperationStatus])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
   (:import [com.sleepycat.je Database DatabaseConfig])
   (:import [com.sleepycat.je Cursor CursorConfig])
@@ -155,6 +155,47 @@
   (.close (db-cursor :db-cursor-handle)))
 
 
+;; TODO: Convenience with-db-cursor macro
+
+
+(defn db-cursor-get [db-cursor & opts-args]
+  (let [defaults     {:key       nil
+                      :data      nil
+                      :direction :forward   ; or :back
+                      :exact     false
+                      :skip-dups false
+                      :lock-mode LockMode/DEFAULT}
+        opts         (merge defaults (apply hash-map opts-args))
+        direction    (opts :direction)
+        lock-mode    (opts :lock-mode)
+        skip-dups    (opts :skip-dups)
+        key-entry    (if-let [k (opts :key)]
+                       (marshal-db-entry k)
+                       (DatabaseEntry.))
+        data-entry   (if-let [d (opts :data)]
+                       (marshal-db-entry d)
+                       (DatabaseEntry.))
+        search-fn    (cond (and (nil? (opts :data)) (opts :exact)) #(.getSearchKey %1 %2 %3 %4)
+                           (nil? (opts :data))                     #(.getSearchKeyRange %1 %2 %3 %4)
+                           (opts :exact)                           #(.getSearchBoth %1 %2 %3 %4)
+                           :else                                   #(.getSearchBothRange %1 %2 %3 %4))
+        direction-fn (cond (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
+                           (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
+                           (= direction :forward)                 #(.getNext %1 %2 %3 %4)
+                           (= direction :back)                    #(.getPrev %1 %2 %3 %4))]
+    (letfn [(cursor-seq [next-fn]
+              (let [seek-res (next-fn
+                              (db-cursor :db-cursor-handle)
+                              key-entry data-entry lock-mode)]
+                (if (= seek-res OperationStatus/SUCCESS)
+                    (lazy-seq (cons [(unmarshal-db-entry key-entry)
+                                     (unmarshal-db-entry data-entry)]
+                                    (cursor-seq direction-fn)))
+                    (lazy-seq))))]
+      (cursor-seq search-fn))))
+;; TODO: What about closing the cursor?
+
+
 
 ;;; ----------------------------------------------------------------------
 ;;; secondary databases (indices)
@@ -235,7 +276,7 @@
 ;; TODO: Error handling?
 ;; TODO: This should return a status if entry not found, or something similar!
 (defn rget [db key & opts-args]
-  (let [defaults   {:search-both false
+  (let [defaults   {:search-both false  ; TODO: Nonsense, just dispatch on which of :key and :data are given
                     :data        nil
                     :lock-mode   LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
