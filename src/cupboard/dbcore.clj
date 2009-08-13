@@ -7,6 +7,11 @@
   (:import [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
 
 
+
+;;; ----------------------------------------------------------------------
+;;; database environments
+;;; ----------------------------------------------------------------------
+
 (defstruct db-env
   :dir
   :conf
@@ -51,6 +56,11 @@
 
 ;; TODO: db-env-sync
 
+
+
+;;; ----------------------------------------------------------------------
+;;; primary databases
+;;; ----------------------------------------------------------------------
 
 (defstruct db
   :env
@@ -109,6 +119,11 @@
 ;; args: {:txn handle :count false}
 
 
+
+;;; ----------------------------------------------------------------------
+;;; secondary databases (indices)
+;;; ----------------------------------------------------------------------
+
 (defstruct db-sec
   :env
   :name
@@ -160,6 +175,12 @@
 
 ;; TODO: Convenience with-db-sec macro
 
+
+
+;;; ----------------------------------------------------------------------
+;;; basic data record operations
+;;; put, get, delete, get by index, delete by index
+;;; ----------------------------------------------------------------------
 
 ;; TODO: Error handling?
 ;; TODO: This should return a status of some kind!
