@@ -197,6 +197,18 @@
 ;; TODO: Convenience with-db-cursor macro
 
 
+;; TODO: Error handling?
+
+;; TODO: You cannot slice and dice with this cursor. It really just
+;; knows how to retrieve data and build a lazy sequence. It does not
+;; support moving back and forward. It seems that building the
+;; sequence should happen at a different level of abstraction.
+
+;; TODO: Refactor this into db-cursor-get, db-cursor-iter. Implement
+;; db-cursor-put, db-cursor-replace, and db-cursor-delete. Implement a
+;; query function of some kind which uses those functiosn to create a
+;; lazy sequence.
+
 (defn db-cursor-get [db-cursor key & opts-args]
   (let [defaults     {:data      nil
                       :direction :forward   ; or :back
