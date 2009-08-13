@@ -8,7 +8,6 @@
 
 
 ;; TODO: Verify that strings encode in UTF-8 under all circumstances.
-;; TODO: Handle Clojure lists, vectors, maps, and sets.
 ;; TODO: Lock out lazy Clojure data structures if possible?
 ;; TODO: Handle Java collections?
 
@@ -87,10 +86,11 @@
       (marshal-write tuple-output value))))
 
 (defn marshal-db-entry [data & [db-entry-arg]]
-  (let [db-entry     (if db-entry-arg db-entry-arg (DatabaseEntry.))
-        tuple-output (TupleOutput.)]
-    (marshal-write tuple-output data)
-    (TupleBinding/outputToEntry tuple-output db-entry)
+  (let [db-entry (if db-entry-arg db-entry-arg (DatabaseEntry.))]
+    (when-not (nil? data)
+      (let [tuple-output (TupleOutput.)]
+        (marshal-write tuple-output data)
+        (TupleBinding/outputToEntry tuple-output db-entry)))
     db-entry))
 
 
@@ -148,5 +148,7 @@
                              (unmarshal-read tuple-input))))))))
 
 (defn unmarshal-db-entry [db-entry]
-  (let [tuple-input (TupleBinding/entryToInput db-entry)]
-    (unmarshal-read tuple-input)))
+  (if (= 0 (.getSize db-entry))
+      nil
+      (let [tuple-input (TupleBinding/entryToInput db-entry)]
+        (unmarshal-read tuple-input))))

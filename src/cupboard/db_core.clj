@@ -123,6 +123,46 @@
 ;; args: {:txn handle :count false}
 
 
+;; TODO: Error handling?
+;; TODO: This should return a status of some kind!
+(defn db-put [db key data & opts-args]
+  (let [defaults   {:overwrite true
+                    :dup-data  true}
+        opts       (merge defaults (apply hash-map opts-args))
+        key-entry  (marshal-db-entry key)
+        data-entry (marshal-db-entry data)]
+    (cond
+      (not (opts :dup-data))  (.putNoDupData
+                               (db :db-handle)
+                               nil key-entry data-entry)
+      (not (opts :overwrite)) (.putNoOverwrite
+                               (db :db-handle)
+                               nil key-entry data-entry)
+      :else (.put (db :db-handle) nil key-entry data-entry))))
+
+
+;; TODO: Error handling?
+;; TODO: This should return a status if entry not found, or something similar!
+(defn db-get [db & opts-args]
+  (let [defaults   {:key       nil
+                    :data      nil
+                    :lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        key-entry  (marshal-db-entry (opts :key))
+        data-entry (marshal-db-entry (opts :data))]
+    (if (not (nil? (opts :data)))
+        (.getSearchBoth (db :db-handle) nil key-entry data-entry (opts :lock-mode))
+        (.get (db :db-handle) nil key-entry data-entry (opts :lock-mode)))
+    [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]))
+
+
+;; TODO: Error handling?
+;; TODO: This should return a status or return code.
+(defn db-delete [db key]
+  (let [key-entry (marshal-db-entry key)]
+    (.delete (db :db-handle) nil key-entry)))
+
+
 
 ;;; ----------------------------------------------------------------------
 ;;; primary database cursors
@@ -167,18 +207,15 @@
                       :lock-mode LockMode/DEFAULT}
         opts         (merge defaults (apply hash-map opts-args))
         direction    (opts :direction)
-        lock-mode    (opts :lock-mode)
+        exact        (opts :exact)
         skip-dups    (opts :skip-dups)
-        key-entry    (if-let [k (opts :key)]
-                       (marshal-db-entry k)
-                       (DatabaseEntry.))
-        data-entry   (if-let [d (opts :data)]
-                       (marshal-db-entry d)
-                       (DatabaseEntry.))
-        search-fn    (cond (and (nil? (opts :data)) (opts :exact)) #(.getSearchKey %1 %2 %3 %4)
-                           (nil? (opts :data))                     #(.getSearchKeyRange %1 %2 %3 %4)
-                           (opts :exact)                           #(.getSearchBoth %1 %2 %3 %4)
-                           :else                                   #(.getSearchBothRange %1 %2 %3 %4))
+        lock-mode    (opts :lock-mode)
+        key-entry    (marshal-db-entry (opts :key))
+        data-entry   (marshal-db-entry (opts :data))
+        search-fn    (cond (and (nil? (opts :data)) :exact)       #(.getSearchKey %1 %2 %3 %4)
+                           (nil? (opts :data))                    #(.getSearchKeyRange %1 %2 %3 %4)
+                           exact                                  #(.getSearchBoth %1 %2 %3 %4)
+                           :else                                  #(.getSearchBothRange %1 %2 %3 %4))
         direction-fn (cond (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
                            (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
                            (= direction :forward)                 #(.getNext %1 %2 %3 %4)
@@ -251,50 +288,6 @@
 
 
 ;; TODO: Convenience with-db-sec macro
-
-
-
-;;; ----------------------------------------------------------------------
-;;; basic data record operations
-;;; put, get, delete, get by index, delete by index
-;;; ----------------------------------------------------------------------
-
-;; TODO: Error handling?
-;; TODO: This should return a status of some kind!
-(defn rput [db key data & opts-args]
-  (let [defaults   {:overwrite true
-                    :dup-data  true}
-        opts       (merge defaults (apply hash-map opts-args))
-        key-entry  (marshal-db-entry key)
-        data-entry (marshal-db-entry data)]
-    (cond
-      (not (opts :dup-data))  (.putNoDupData   (db :db-handle) nil key-entry data-entry)
-      (not (opts :overwrite)) (.putNoOverwrite (db :db-handle) nil key-entry data-entry)
-      true (.put (db :db-handle) nil key-entry data-entry))))
-
-
-;; TODO: Error handling?
-;; TODO: This should return a status if entry not found, or something similar!
-(defn rget [db key & opts-args]
-  (let [defaults   {:search-both false  ; TODO: Nonsense, just dispatch on which of :key and :data are given
-                    :data        nil
-                    :lock-mode   LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
-        key-entry  (marshal-db-entry key)
-        data-entry (if (opts :data)
-                       (marshal-db-entry (opts :data))
-                       (DatabaseEntry.))]
-    (if (opts :search-both)
-        (.getSearchBoth (db :db-handle) nil key-entry data-entry (opts :lock-mode))
-        (.get (db :db-handle) nil key-entry data-entry (opts :lock-mode)))
-    (unmarshal-db-entry data-entry)))
-
-
-;; TODO: Error handling?
-;; TODO: This should return a status or return code.
-(defn rdelete [db key]
-  (let [key-entry (marshal-db-entry key)]
-    (.delete (db :db-handle) nil key-entry)))
 
 
 ;; TODO: Error handling?

@@ -4,7 +4,8 @@
 
 
 (deftest basic-marshaling
-  (let [tboolean true
+  (let [tnil     nil
+        tboolean true
         tchar    \c
         tbyte    (byte 1)
         tshort   (short 1)
@@ -21,6 +22,7 @@
         tvector  [1 2 3]
         tmap     {:one 1 :two 2 :three 3}
         tset     #{:one 2 'three}]
+    (is (= (unmarshal-db-entry (marshal-db-entry tnil)) tnil))
     (is (= (unmarshal-db-entry (marshal-db-entry tboolean)) tboolean))
     (is (= (unmarshal-db-entry (marshal-db-entry tchar)) tchar))
     (is (= (unmarshal-db-entry (marshal-db-entry tbyte)) tbyte))
