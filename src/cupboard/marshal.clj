@@ -1,4 +1,5 @@
 (ns cupboard.marshal
+  (:use [cupboard.utils])
   (:import [com.sleepycat.je DatabaseEntry])
   (:import [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
@@ -23,6 +24,7 @@
                   clojure.lang.Ratio
                   java.lang.Double
                   java.lang.String
+                  java.util.Date
                   clojure.lang.Keyword
                   clojure.lang.Symbol
                   :list
@@ -64,6 +66,9 @@
     (marshal-write tuple-output (.denominator data))))
 (def-marshal-write java.lang.Double .writeSortedDouble)
 (def-marshal-write java.lang.String .writeString)
+(def-marshal-write java.util.Date
+  (fn [tuple-output data]
+    (.writeString tuple-output (date->iso8601 data :millis true))))
 (def-marshal-write clojure.lang.Keyword
   (fn [tuple-output data] (.writeString tuple-output (subs (str data) 1))))
 (def-marshal-write clojure.lang.Symbol
@@ -111,6 +116,8 @@
                      (unmarshal-read tuple-input))))
 (def-unmarshal-read java.lang.Double .readSortedDouble)
 (def-unmarshal-read java.lang.String .readString)
+(def-unmarshal-read java.util.Date
+  (fn [tuple-input] (iso8601->date (.readString tuple-input))))
 (def-unmarshal-read clojure.lang.Keyword
   (fn [tuple-input] (keyword (.readString tuple-input))))
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!
