@@ -1,4 +1,4 @@
-(ns cupboard.dbcore
+(ns cupboard.db-core
   (:use [cupboard.marshal])
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
