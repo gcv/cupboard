@@ -86,8 +86,8 @@
       (marshal-write tuple-output key)
       (marshal-write tuple-output value))))
 
-(defn marshal-db-entry [data]
-  (let [db-entry     (DatabaseEntry.)
+(defn marshal-db-entry [data & [db-entry-arg]]
+  (let [db-entry     (if db-entry-arg db-entry-arg (DatabaseEntry.))
         tuple-output (TupleOutput.)]
     (marshal-write tuple-output data)
     (TupleBinding/outputToEntry tuple-output db-entry)

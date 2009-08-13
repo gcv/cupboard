@@ -3,14 +3,14 @@
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
-  (:import [com.sleepycat.je DatabaseConfig Database]))
+  (:import [com.sleepycat.je Database DatabaseConfig])
+  (:import [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
 
 
 (defstruct db-env
   :dir
   :conf
-  :env-handle
-  :databases)
+  :env-handle)
 
 
 ;; TODO: Error handling?
@@ -19,17 +19,16 @@
                   :read-only     false
                   :transactional false}
         dir      (c.c.java-utils/file dir)
-        conf-map (merge defaults (apply hash-map conf-args))
-        conf     (doto (EnvironmentConfig.)
-                   (.setAllowCreate   (conf-map :allow-create))
-                   (.setReadOnly      (conf-map :read-only))
-                   (.setTransactional (conf-map :transactional)))]
+        conf     (merge defaults (apply hash-map conf-args))
+        conf-obj (doto (EnvironmentConfig.)
+                   (.setAllowCreate   (conf :allow-create))
+                   (.setReadOnly      (conf :read-only))
+                   (.setTransactional (conf :transactional)))]
     (when-not (.exists dir) (.mkdir dir)) ; TODO: mkdir -p in Java?
     (struct-map db-env
-      :dir dir
+      :dir  dir
       :conf conf
-      :env-handle (Environment. dir conf)
-      :databases (atom {}))))
+      :env-handle (Environment. dir conf-obj))))
 
 
 ;; TODO: EnvironmentMutableConfig handling
@@ -68,10 +67,6 @@
 
 ;; TODO: Error handling?
 (defn db-open [db-env name & conf-args]
-  (when-let [existing-db (contains? @(db-env :databases) name)]
-    ;; flush deferred-write data, close handle, remove handle from db-env
-    (db-close existing-db)
-    (swap! (db-env :databases) dissoc name))
   (let [defaults {:allow-create      false
                   :deferred-write    false
                   :temporary         false
@@ -79,24 +74,23 @@
                   :exclusive-create  false
                   :read-only         false
                   :transactional     false}
-        conf-map (merge defaults (apply hash-map conf-args))
-        conf     (doto (DatabaseConfig.)
-                   (.setAllowCreate      (conf-map :allow-create))
-                   (.setDeferredWrite    (conf-map :deferred-write))
-                   (.setSortedDuplicates (conf-map :sorted-duplicates))
-                   (.setExclusiveCreate  (conf-map :exclusive-create))
-                   (.setReadOnly         (conf-map :read-only))
-                   (.setTransactional    (conf-map :transactional)))
-        db       (struct-map db
-                   :env db-env
-                   :name name
-                   :conf conf
-                   :db-handle (.openDatabase
-                               (db-env :env-handle) nil name conf))]
-    ;; Push this database into the (db-env :databases) atom and return
-    ;; the db object.
-    (swap! (db-env :databases) assoc name db)
-    db))
+        conf     (merge defaults (apply hash-map conf-args))
+        conf-obj (doto (DatabaseConfig.)
+                   (.setAllowCreate      (conf :allow-create))
+                   (.setDeferredWrite    (conf :deferred-write))
+                   (.setSortedDuplicates (conf :sorted-duplicates))
+                   (.setExclusiveCreate  (conf :exclusive-create))
+                   (.setReadOnly         (conf :read-only))
+                   (.setTransactional    (conf :transactional)))]
+    (struct-map db
+      :env  db-env
+      :name name
+      :conf conf
+      :db-handle (.openDatabase
+                  (db-env :env-handle) nil name conf-obj))))
+
+
+;; TODO: Convenience with-db macro
 
 
 ;; TODO: Error handling?
@@ -113,6 +107,58 @@
 
 ;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
 ;; args: {:txn handle :count false}
+
+
+(defstruct db-sec
+  :env
+  :name
+  :db
+  :conf
+  :db-sec-handle)
+
+
+;; TODO: Error handling?
+(defn db-sec-open [db-env db name & conf-args]
+  ;; TODO: Make this way smoother!
+  (when ((db :conf) :sorted-duplicates)
+    :error-out-in-flames)
+  (let [defaults    {:key-creator-fn    first
+                     :allow-create      false
+                     :sorted-duplicates false
+                     :allow-populate    true}
+        conf        (merge defaults (apply hash-map conf-args))
+        key-creator (proxy [SecondaryKeyCreator] []
+                      (createSecondaryKey [_ key-entry data-entry result-entry]
+                        (let [data     (unmarshal-db-entry data-entry)
+                              sec-data ((conf :key-creator-fn) data)]
+                          (if sec-data
+                              (do
+                                (marshal-db-entry sec-data result-entry)
+                                true)
+                              false))))
+        conf-obj    (doto (SecondaryConfig.)
+                      (.setKeyCreator       key-creator)
+                      (.setAllowCreate      (conf :allow-create))
+                      (.setSortedDuplicates (conf :sorted-duplicates))
+                      (.setAllowPopulate    (conf :allow-populate)))]
+    (struct-map db-sec
+      :env  db-env
+      :db   db
+      :name name
+      :conf conf
+      :db-sec-handle (.openSecondaryDatabase
+                      (db-env :env-handle)
+                      nil
+                      name (db :db-handle) conf-obj))))
+
+
+;; TODO: Error handling?
+(defn db-sec-close [db-sec]
+  ;; TODO: Deal with all open cursors on the database.
+  (.close (db-sec :db-sec-handle)))
+
+
+;; TODO: Convenience with-db-sec macro
 
 
 ;; TODO: Error handling?
@@ -148,9 +194,24 @@
 
 ;; TODO: Error handling?
 ;; TODO: This should return a status or return code.
-(defn rdelete [db key & opts-args]
-  ;; TODO: opts-args should have some way to distinguish between
-  ;; removing all matching records, or using a cursor to delete some
-  ;; of the duplicates.
+(defn rdelete [db key]
   (let [key-entry (marshal-db-entry key)]
-    (.delete (db :db-handle) key-entry)))
+    (.delete (db :db-handle) nil key-entry)))
+
+
+;; TODO: Error handling?
+(defn rget-sec [db-sec search-key & opts-args]
+  (let [defaults         {:lock-mode LockMode/DEFAULT}
+        opts             (merge defaults (apply hash-map opts-args))
+        search-key-entry (marshal-db-entry search-key)
+        key-entry        (DatabaseEntry.)
+        data-entry       (DatabaseEntry.)]
+    (.get (db-sec :db-sec-handle) nil
+          search-key-entry key-entry data-entry (opts :lock-mode))
+    [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]))
+
+
+;; TODO: Error handling?
+(defn rdelete-sec [db-sec search-key]
+  (let [search-entry (marshal-db-entry search-key)]
+    (.delete (db-sec :db-sec-handle) nil search-entry)))
