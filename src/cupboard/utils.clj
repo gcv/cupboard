@@ -20,8 +20,8 @@
   (let [defaults {:millis false}
         opts     (merge defaults (apply hash-map opts-args))]
     (if (opts :millis)
-        (.format *iso-date-format-millis* date)
-        (.format *iso-date-format* date))))
+        (.format *iso8601-date-format-millis* date)
+        (.format *iso8601-date-format* date))))
 
 (defn iso8601->date [datestr]
  (try
