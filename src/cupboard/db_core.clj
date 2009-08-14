@@ -272,7 +272,10 @@
   (.delete (db-cursor :db-cursor-handle)))
 
 
-;; TODO: db-cursor-replace
+(defn db-cursor-replace
+  "Replaces the data entry of the record the cursor currently points to."
+  [db-cursor new-data]
+  (.putCurrent (db-cursor :db-cursor-handle) (marshal-db-entry new-data)))
 
 
 ;; TODO: Write functions to manipulate the cursor's cache mode
