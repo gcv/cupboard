@@ -1,4 +1,5 @@
 (ns cupboard.utils
+  (:import [java.io File IOException FileNotFoundException])
   (:import [java.text SimpleDateFormat ParseException])
   (:import [java.util Date TimeZone]))
 
@@ -28,3 +29,30 @@
   (.parse *iso8601-date-format-millis* datestr)
   (catch ParseException pe
     (.parse *iso8601-date-format* datestr))))
+
+
+
+;;; ----------------------------------------------------------------------
+;;; file and directory routines
+;;; ----------------------------------------------------------------------
+
+(defn make-temp-dir []
+  (let [tf (File/createTempFile "temp-" (str (java.util.UUID/randomUUID)))]
+    (when-not (.delete tf)
+      (throw (IOException.
+              (str "Failed to delete temporary file " (.getAbsolutePath tf)))))
+    (when-not (.mkdir tf)
+      (throw (IOException.
+              (str "Failed to create temporary directory " (.getAbsolutePath tf)))))
+    tf))
+
+
+(defn rmdir-recursive [dir]
+  (let [dir (if (= File (class dir)) dir (File. dir))]
+    (when-not (.exists dir)
+      (throw (FileNotFoundException.
+              (str "Not found for deletion: " (.getAbsolutePath dir)))))
+    (when (.isDirectory dir)
+      (doseq [x (.list dir)] (rmdir-recursive (File. dir x))))
+    (when-not (.delete dir)
+      (throw (IOException. (str "Failed to delete " (.getAbsolutePath dir)))))))
