@@ -41,11 +41,15 @@
   (db-put *db* "one" 1)
   (is (= (db-get *db* "one") ["one" 1]))
   (dotimes [i 100] (db-put *db* (str i) i))
-  (is (= (db-get *db* "50") ["50" 50])))
+  (is (= (db-get *db* "50") ["50" 50]))
+  (is (= (db-get *db* "not there") []))
+  (db-delete *db* "one")
+  (is (= (db-get *db* "one") [])))
 
 
 (deftest types
   (let [now (java.util.Date.)]
+    (db-put *db* "nil"     nil)
     (db-put *db* "boolean" true)
     (db-put *db* "char"    \c)
     (db-put *db* "byte"    (byte 1))
@@ -63,6 +67,7 @@
     (db-put *db* "vector"  [1 2 3])
     (db-put *db* "map"     {:one 1 :two 2 :three 3})
     (db-put *db* "set"     #{:one 2 'three})
+    (is (= (db-get *db* "nil")     ["nil" nil]))
     (is (= (db-get *db* "boolean") ["boolean" true]))
     (is (= (db-get *db* "char")    ["char" \c]))
     (is (= (db-get *db* "byte")    ["byte" (byte 1)]))

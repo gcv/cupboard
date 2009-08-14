@@ -142,17 +142,25 @@
 
 
 ;; TODO: Error handling?
-;; TODO: This should return a status if entry not found, or something similar!
-(defn db-get [db key & opts-args]
-  (let [defaults   {:data      nil
-                    :lock-mode LockMode/DEFAULT}
+(defn db-get
+  "Optional keyword arguments:
+     :data --- if specified, searches by both exact match of both key and :data value
+     :lock-mode"
+  [db key & opts-args]
+  (let [defaults   {:lock-mode LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
         key-entry  (marshal-db-entry key)
-        data-entry (marshal-db-entry (opts :data))]
-    (if (not (nil? (opts :data)))
-        (.getSearchBoth (db :db-handle) nil key-entry data-entry (opts :lock-mode))
-        (.get (db :db-handle) nil key-entry data-entry (opts :lock-mode)))
-    [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]))
+        data-entry (if (contains? opts :data)
+                       (marshal-db-entry (opts :data))
+                       (DatabaseEntry.))
+        result     (if (contains? opts :data)
+                       (.getSearchBoth (db :db-handle) nil
+                                       key-entry data-entry (opts :lock-mode))
+                       (.get (db :db-handle) nil
+                             key-entry data-entry (opts :lock-mode)))]
+    (if (= result OperationStatus/SUCCESS)
+        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
+        [])))
 
 
 ;; TODO: Error handling?
@@ -209,9 +217,12 @@
 ;; query function of some kind which uses those functiosn to create a
 ;; lazy sequence.
 
-(defn db-cursor-get [db-cursor key & opts-args]
-  (let [defaults     {:data      nil
-                      :direction :forward   ; or :back
+(defn db-cursor-get
+  "Optional keyword arguments:
+     :data --- if specified, positions the cursor by both key and :data values
+     TODO: Fill in the rest of this."
+  [db-cursor key & opts-args]
+  (let [defaults     {:direction :forward   ; or :back
                       :exact     false
                       :skip-dups false
                       :lock-mode LockMode/DEFAULT}
@@ -221,11 +232,13 @@
         skip-dups    (opts :skip-dups)
         lock-mode    (opts :lock-mode)
         key-entry    (marshal-db-entry key)
-        data-entry   (marshal-db-entry (opts :data))
-        search-fn    (cond (and (nil? (opts :data)) :exact) #(.getSearchKey %1 %2 %3 %4)
-                           (nil? (opts :data))              #(.getSearchKeyRange %1 %2 %3 %4)
-                           exact                            #(.getSearchBoth %1 %2 %3 %4)
-                           :else                            #(.getSearchBothRange %1 %2 %3 %4))
+        data-entry   (if (contains? opts :data)
+                         (marshal-db-entry (opts :data))
+                         (DatabaseEntry.))
+        search-fn    (cond (and (contains? opts :data) :exact)    #(.getSearchBoth %1 %2 %3 %4)
+                           (contains? opts :data)                 #(.getSearchBothRange %1 %2 %3 %4)
+                           exact                                  #(.getSearchKey %1 %2 %3 %4)
+                           :else                                  #(.getSearchKeyRange %1 %2 %3 %4))
         direction-fn (cond (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
                            (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
                            (= direction :forward)                 #(.getNext %1 %2 %3 %4)

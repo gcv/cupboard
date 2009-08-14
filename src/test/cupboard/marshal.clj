@@ -1,9 +1,10 @@
 (ns test.cupboard.marshal
   (:use [clojure.contrib.test-is])
-  (:use [cupboard.marshal]))
+  (:use [cupboard.marshal])
+  (:import [com.sleepycat.je DatabaseEntry]))
 
 
-(deftest basic-marshaling
+(deftest type-marshaling
   (let [tnil     nil
         tboolean true
         tchar    \c
@@ -40,3 +41,13 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tvector)) tvector))
     (is (= (unmarshal-db-entry (marshal-db-entry tmap)) tmap))
     (is (= (unmarshal-db-entry (marshal-db-entry tset)) tset))))
+
+
+(deftest other-marshaling
+  (let [db-entry-empty    (marshal-db-entry (DatabaseEntry.))
+        db-entry-nil      (marshal-db-entry nil)
+        db-entry-obj      (DatabaseEntry.)
+        db-entry-prealloc (marshal-db-entry "hello world" db-entry-obj)]
+    (is (= (.getSize db-entry-empty) 0))
+    (is (= (.getSize db-entry-nil) 1))
+    (is (identical? db-entry-obj db-entry-prealloc))))

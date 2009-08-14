@@ -4,9 +4,6 @@
   (:import [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
 
-;; TODO: This needs a test suite.
-
-
 ;; TODO: Verify that strings encode in UTF-8 under all circumstances.
 ;; TODO: Lock out lazy Clojure data structures if possible?
 ;; TODO: Handle Java collections?
@@ -48,8 +45,9 @@
 (defmacro def-marshal-write [java-type write-method]
   `(defmethod marshal-write ~java-type [tuple-output# data#]
      (.writeUnsignedByte tuple-output# (*clj-type-codes* ~java-type))
-     (~write-method tuple-output# data#)))
+     (when-not (nil? data#) (~write-method tuple-output# data#))))
 
+(def-marshal-write nil (fn [_] nil))
 (def-marshal-write java.lang.Boolean .writeBoolean)
 (def-marshal-write java.lang.Boolean .writeBoolean)
 (def-marshal-write java.lang.Character
@@ -85,13 +83,19 @@
       (marshal-write tuple-output key)
       (marshal-write tuple-output value))))
 
-(defn marshal-db-entry [data & [db-entry-arg]]
-  (let [db-entry (if db-entry-arg db-entry-arg (DatabaseEntry.))]
-    (when-not (nil? data)
-      (let [tuple-output (TupleOutput.)]
+(defn marshal-db-entry
+  "A general way to get a database entry from data. If data is a DatabaseEntry
+   instance, just return it. If it is a supported type, convert it into a new
+   DatabaseEntry object. If the optional db-entry-arg is passed in, reuse it
+   as the target DatabaseEntry."
+  [data & [db-entry-arg]]
+  (if (instance? DatabaseEntry data)
+      data
+      (let [db-entry (if db-entry-arg db-entry-arg (DatabaseEntry.))
+            tuple-output (TupleOutput.)]
         (marshal-write tuple-output data)
-        (TupleBinding/outputToEntry tuple-output db-entry)))
-    db-entry))
+        (TupleBinding/outputToEntry tuple-output db-entry)
+        db-entry)))
 
 
 (defmulti unmarshal-read
@@ -103,6 +107,7 @@
   `(defmethod unmarshal-read ~java-type [tuple-input#]
      (~read-method tuple-input#)))
 
+(def-unmarshal-read nil (fn [_] nil))
 (def-unmarshal-read java.lang.Boolean .readBoolean)
 (def-unmarshal-read java.lang.Character .readChar)
 (def-unmarshal-read java.lang.Byte .readByte)
