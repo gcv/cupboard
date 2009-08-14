@@ -97,6 +97,14 @@
         (TupleBinding/outputToEntry tuple-output db-entry)
         db-entry)))
 
+(defn marshal-db-entry*
+  "A helper function for making optionally-empty DatabaseEntry objects from
+   keyword argument maps."
+  [map-arg key-arg]
+  (if (contains? map-arg key-arg)
+      (marshal-db-entry (map-arg key-arg))
+      (DatabaseEntry.)))
+
 
 (defmulti unmarshal-read
   (fn [tuple-input]

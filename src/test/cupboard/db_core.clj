@@ -97,8 +97,10 @@
     (db-put *db* "c" data3)
     (db-put *db* "d" data4)
     (let [cur1 (db-cursor-open *db*)]
-      (is (= (db-cursor-get cur1 "a")
-             (list ["a" data1] ["b" data2] ["c" data3] ["d" data4])))
+      (is (= (db-cursor-search cur1 "a") ["a" data1]))
+      (is (= (db-cursor-next cur1) ["b" data2]))
+      (is (= (db-cursor-next cur1) ["c" data3]))
+      (is (= (db-cursor-next cur1 :direction :back) ["b" data2]))
       (db-cursor-close cur1))))
 
 

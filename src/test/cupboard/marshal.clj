@@ -50,4 +50,11 @@
         db-entry-prealloc (marshal-db-entry "hello world" db-entry-obj)]
     (is (= (.getSize db-entry-empty) 0))
     (is (= (.getSize db-entry-nil) 1))
-    (is (identical? db-entry-obj db-entry-prealloc))))
+    (is (identical? db-entry-obj db-entry-prealloc))
+    (is (identical? db-entry-prealloc (marshal-db-entry db-entry-prealloc)))))
+
+
+(deftest optional-marshaling
+  (let [arg-map {:data "hello"}]
+    (is (not (= 0 (.getSize (marshal-db-entry* arg-map :data)))))
+    (is (= 0 (.getSize (marshal-db-entry* arg-map :key))))))

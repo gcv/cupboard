@@ -150,9 +150,7 @@
   (let [defaults   {:lock-mode LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
         key-entry  (marshal-db-entry key)
-        data-entry (if (contains? opts :data)
-                       (marshal-db-entry (opts :data))
-                       (DatabaseEntry.))
+        data-entry (marshal-db-entry* opts :data)
         result     (if (contains? opts :data)
                        (.getSearchBoth (db :db-handle) nil
                                        key-entry data-entry (opts :lock-mode))
@@ -206,54 +204,51 @@
 
 
 ;; TODO: Error handling?
-
-;; TODO: You cannot slice and dice with this cursor. It really just
-;; knows how to retrieve data and build a lazy sequence. It does not
-;; support moving back and forward. It seems that building the
-;; sequence should happen at a different level of abstraction.
-
-;; TODO: Refactor this into db-cursor-get, db-cursor-iter. Implement
-;; db-cursor-put, db-cursor-replace, and db-cursor-delete. Implement a
-;; query function of some kind which uses those functiosn to create a
-;; lazy sequence.
-
-(defn db-cursor-get
+(defn db-cursor-search
   "Optional keyword arguments:
-     :data --- if specified, positions the cursor by both key and :data values
-     TODO: Fill in the rest of this."
+     :data  --- if specified, positions the cursor by both key and :data values
+     :exact --- if true, match the key and optional :data exactly"
   [db-cursor key & opts-args]
-  (let [defaults     {:direction :forward   ; or :back
-                      :exact     false
-                      :skip-dups false
-                      :lock-mode LockMode/DEFAULT}
-        opts         (merge defaults (apply hash-map opts-args))
-        direction    (opts :direction)
-        exact        (opts :exact)
-        skip-dups    (opts :skip-dups)
-        lock-mode    (opts :lock-mode)
-        key-entry    (marshal-db-entry key)
-        data-entry   (if (contains? opts :data)
-                         (marshal-db-entry (opts :data))
-                         (DatabaseEntry.))
-        search-fn    (cond (and (contains? opts :data) :exact)    #(.getSearchBoth %1 %2 %3 %4)
-                           (contains? opts :data)                 #(.getSearchBothRange %1 %2 %3 %4)
-                           exact                                  #(.getSearchKey %1 %2 %3 %4)
-                           :else                                  #(.getSearchKeyRange %1 %2 %3 %4))
-        direction-fn (cond (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
-                           (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
-                           (= direction :forward)                 #(.getNext %1 %2 %3 %4)
-                           (= direction :back)                    #(.getPrev %1 %2 %3 %4))]
-    (letfn [(cursor-seq [next-fn]
-              (let [seek-res (next-fn
-                              (db-cursor :db-cursor-handle)
-                              key-entry data-entry lock-mode)]
-                (if (= seek-res OperationStatus/SUCCESS)
-                    (lazy-seq (cons [(unmarshal-db-entry key-entry)
-                                     (unmarshal-db-entry data-entry)]
-                                    (cursor-seq direction-fn)))
-                    (lazy-seq))))]
-      (cursor-seq search-fn))))
-;; TODO: What about closing the cursor?
+  (let [defaults   {:exact     false
+                    :lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        exact      (opts :exact)
+        key-entry  (marshal-db-entry key)
+        data-entry (marshal-db-entry* opts :data)
+        search-fn  (cond (and (contains? opts :data) :exact) #(.getSearchBoth %1 %2 %3 %4)
+                         (contains? opts :data)              #(.getSearchBothRange %1 %2 %3 %4)
+                         exact                               #(.getSearchKey %1 %2 %3 %4)
+                         :else                               #(.getSearchKeyRange %1 %2 %3 %4))
+        result     (search-fn (db-cursor :db-cursor-handle)
+                              key-entry data-entry (opts :lock-mode))]
+    (if (= result OperationStatus/SUCCESS)
+        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
+        [])))
+
+
+;; TODO: Error handling?
+(defn db-cursor-next
+  "Optional keyword arguments:
+     :key  --- if specified, reuses the given DatabaseEntry
+     :data --- if specified, reuses the given DatabaseEntry"
+  [db-cursor & opts-args]
+  (let [defaults   {:direction :forward
+                    :skip-dups false
+                    :lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        direction  (opts :direction)
+        skip-dups  (opts :skip-dups)
+        key-entry  (marshal-db-entry* opts :key)
+        data-entry (marshal-db-entry* opts :data)
+        next-fn    (cond (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
+                         (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
+                         (= direction :forward)                 #(.getNext %1 %2 %3 %4)
+                         (= direction :back)                    #(.getPrev %1 %2 %3 %4))
+        result     (next-fn (db-cursor :db-cursor-handle)
+                            key-entry data-entry (opts :lock-mode))]
+    (if (= result OperationStatus/SUCCESS)
+        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
+        [])))
 
 
 ;; TODO: db-cursor-put
@@ -262,8 +257,7 @@
 ;; TODO: db-cursor-delete
 
 
-;; TODO: Think about db-cursor-replace to overwrite the current
-;; location..? Probably not possible.
+;; TODO: db-cursor-replace
 
 
 
