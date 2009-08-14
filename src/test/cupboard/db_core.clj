@@ -112,6 +112,7 @@
       (db-cursor-replace cur1 data1)
       (db-cursor-next cur1 :direction :back)
       (is (= (db-cursor-next cur1 :direction :forward) ["e" data1]))
+      (is (= (db-cursor-current cur1) ["e" data1]))
       (db-cursor-close cur1))))
 
 

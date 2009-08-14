@@ -1,7 +1,7 @@
 (ns cupboard.db-core
   (:use [cupboard.marshal])
   (:require [clojure.contrib.java-utils :as c.c.java-utils])
-  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode OperationStatus])
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
   (:import [com.sleepycat.je Database DatabaseConfig])
   (:import [com.sleepycat.je Cursor CursorConfig])
@@ -157,9 +157,7 @@
                                        key-entry data-entry (opts :lock-mode))
                        (.get (db :db-handle) nil
                              key-entry data-entry (opts :lock-mode)))]
-    (if (= result OperationStatus/SUCCESS)
-        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
-        [])))
+    (unmarshal-db-entry* result key-entry data-entry)))
 
 
 ;; TODO: Error handling?
@@ -223,9 +221,22 @@
                          :else                               #(.getSearchKeyRange %1 %2 %3 %4))
         result     (search-fn (db-cursor :db-cursor-handle)
                               key-entry data-entry (opts :lock-mode))]
-    (if (= result OperationStatus/SUCCESS)
-        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
-        [])))
+    (unmarshal-db-entry* result key-entry data-entry)))
+
+
+;; TODO: Error handling?
+(defn db-cursor-current
+  "Optional keyword arguments:
+     :key  --- if specified, reuses the given DatabaseEntry
+     :data --- if specified, reuses the given DatabaseEntry"
+  [db-cursor & opts-args]
+  (let [defaults   {:lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        key-entry  (marshal-db-entry* opts :key)
+        data-entry (marshal-db-entry* opts :data)
+        result     (.getCurrent (db-cursor :db-cursor-handle)
+                                key-entry data-entry (opts :lock-mode))]
+    (unmarshal-db-entry* result key-entry data-entry)))
 
 
 ;; TODO: Error handling?
@@ -248,11 +259,10 @@
                          (= direction :back)                    #(.getPrev %1 %2 %3 %4))
         result     (next-fn (db-cursor :db-cursor-handle)
                             key-entry data-entry (opts :lock-mode))]
-    (if (= result OperationStatus/SUCCESS)
-        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
-        [])))
+    (unmarshal-db-entry* result key-entry data-entry)))
 
 
+;; TODO: Error handling?
 (defn db-cursor-put [db-cursor key data & opts-args]
   (let [opts       (apply hash-map opts-args)
         key-entry  (marshal-db-entry key)
@@ -266,12 +276,14 @@
           :else (.put (db-cursor :db-cursor-handle) key-entry data-entry))))
 
 
+;; TODO: Error handling?
 (defn db-cursor-delete
   "Deletes the record the cursor currently points to."
   [db-cursor]
   (.delete (db-cursor :db-cursor-handle)))
 
 
+;; TODO: Error handling?
 (defn db-cursor-replace
   "Replaces the data entry of the record the cursor currently points to."
   [db-cursor new-data]
@@ -348,9 +360,7 @@
         result           (.get (db-sec :db-sec-handle) nil
                                search-key-entry key-entry data-entry
                                (opts :lock-mode))]
-    (if (= result OperationStatus/SUCCESS)
-        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
-        [])))
+    (unmarshal-db-entry* result key-entry data-entry)))
 
 
 ;; TODO: Error handling?

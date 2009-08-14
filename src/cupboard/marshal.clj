@@ -1,6 +1,6 @@
 (ns cupboard.marshal
   (:use [cupboard.utils])
-  (:import [com.sleepycat.je DatabaseEntry])
+  (:import [com.sleepycat.je DatabaseEntry OperationStatus])
   (:import [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
 
@@ -165,3 +165,11 @@
       nil
       (let [tuple-input (TupleBinding/entryToInput db-entry)]
         (unmarshal-read tuple-input))))
+
+(defn unmarshal-db-entry*
+  "A helper function which returns a [key data] pair given the result of a
+   retrieval operation and the corresponding DatabaseEntry objects."
+  [result key-entry data-entry]
+  (if (= result OperationStatus/SUCCESS)
+      [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
+      []))

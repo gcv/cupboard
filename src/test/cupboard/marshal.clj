@@ -1,7 +1,7 @@
 (ns test.cupboard.marshal
   (:use [clojure.contrib.test-is])
   (:use [cupboard.marshal])
-  (:import [com.sleepycat.je DatabaseEntry]))
+  (:import [com.sleepycat.je DatabaseEntry OperationStatus]))
 
 
 (deftest type-marshaling
@@ -58,3 +58,14 @@
   (let [arg-map {:data "hello"}]
     (is (not (= 0 (.getSize (marshal-db-entry* arg-map :data)))))
     (is (= 0 (.getSize (marshal-db-entry* arg-map :key))))))
+
+
+(deftest optional-unmarshaling
+  (is (= (unmarshal-db-entry* OperationStatus/SUCCESS
+                              (marshal-db-entry "one")
+                              (marshal-db-entry 1))
+         ["one" 1]))
+  (is (= (unmarshal-db-entry* OperationStatus/NOTFOUND
+                              (marshal-db-entry "one")
+                              (marshal-db-entry 1))
+         [])))
