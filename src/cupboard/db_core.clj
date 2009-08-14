@@ -225,18 +225,23 @@
 
 
 ;; TODO: Error handling?
-(defn db-cursor-current
-  "Optional keyword arguments:
-     :key  --- if specified, reuses the given DatabaseEntry
-     :data --- if specified, reuses the given DatabaseEntry"
-  [db-cursor & opts-args]
-  (let [defaults   {:lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
-        key-entry  (marshal-db-entry* opts :key)
-        data-entry (marshal-db-entry* opts :data)
-        result     (.getCurrent (db-cursor :db-cursor-handle)
-                                key-entry data-entry (opts :lock-mode))]
-    (unmarshal-db-entry* result key-entry data-entry)))
+(defmacro def-db-cursor-simple-position [name java-fn]
+  `(defn ~name
+     "Optional keyword arguments:
+        :key  --- if specified, reuses the given DatabaseEntry
+        :data --- if specified, reuses the given DatabaseEntry"
+     [db-cursor# & opts-args#]
+     (let [defaults#   {:lock-mode LockMode/DEFAULT}
+           opts#       (merge defaults# (apply hash-map opts-args#))
+           key-entry#  (marshal-db-entry* opts# :key)
+           data-entry# (marshal-db-entry* opts# :data)
+           result#     (~java-fn (db-cursor# :db-cursor-handle)
+                                 key-entry# data-entry# (opts# :lock-mode))]
+       (unmarshal-db-entry* result# key-entry# data-entry#))))
+
+(def-db-cursor-simple-position db-cursor-first .getFirst)
+(def-db-cursor-simple-position db-cursor-current .getCurrent)
+(def-db-cursor-simple-position db-cursor-last .getLast)
 
 
 ;; TODO: Error handling?

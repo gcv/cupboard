@@ -113,6 +113,8 @@
       (db-cursor-next cur1 :direction :back)
       (is (= (db-cursor-next cur1 :direction :forward) ["e" data1]))
       (is (= (db-cursor-current cur1) ["e" data1]))
+      (is (= (db-cursor-first cur1) ["a" data1]))
+      (is (= (db-cursor-last cur1) ["e" data1]))
       (db-cursor-close cur1))))
 
 
