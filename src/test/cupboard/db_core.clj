@@ -104,6 +104,10 @@
       (is (= (db-cursor-next cur1 :direction :back) ["b" data2]))
       (db-cursor-put cur1 "e" data5)
       (is (= (db-cursor-next cur1 :direction :back) ["d" data4]))
+      (is (= (db-cursor-next cur1 :direction :forward) ["e" data5]))
+      (db-cursor-delete cur1)
+      (is (= (db-cursor-next cur1 :direction :back) ["d" data4]))
+      (is (= (db-cursor-next cur1 :direction :forward) []))
       (db-cursor-close cur1))))
 
 

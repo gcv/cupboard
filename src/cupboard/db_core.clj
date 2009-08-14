@@ -266,7 +266,10 @@
           :else (.put (db-cursor :db-cursor-handle) key-entry data-entry))))
 
 
-;; TODO: db-cursor-delete
+(defn db-cursor-delete
+  "Deletes the record the cursor currently points to."
+  [db-cursor]
+  (.delete (db-cursor :db-cursor-handle)))
 
 
 ;; TODO: db-cursor-replace
