@@ -91,7 +91,8 @@
   (let [data1 #{:one 1 :two 2 :three "three" :four "five six seven eight"}
         data2 "hello world"
         data3 3.3
-        data4 [4]]
+        data4 [4]
+        data5 {:one 1 :two 2}]
     (db-put *db* "a" data1)
     (db-put *db* "b" data2)
     (db-put *db* "c" data3)
@@ -101,6 +102,8 @@
       (is (= (db-cursor-next cur1) ["b" data2]))
       (is (= (db-cursor-next cur1) ["c" data3]))
       (is (= (db-cursor-next cur1 :direction :back) ["b" data2]))
+      (db-cursor-put cur1 "e" data5)
+      (is (= (db-cursor-next cur1 :direction :back) ["d" data4]))
       (db-cursor-close cur1))))
 
 

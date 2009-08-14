@@ -125,20 +125,21 @@
 
 ;; TODO: Error handling?
 ;; TODO: This should return a status of some kind!
-(defn db-put [db key data & opts-args]
-  (let [defaults   {:overwrite true
-                    :dup-data  true}
-        opts       (merge defaults (apply hash-map opts-args))
+(defn db-put
+  "Optional keyword arguments:
+     :no-dup-data  --- if true, then calls .putNoDupData
+     :no-overwrite --- if true, then calls .putNoOverwrite"
+  [db key data & opts-args]
+  (let [opts       (apply hash-map opts-args)
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
-    (cond
-      (not (opts :dup-data))  (.putNoDupData
-                               (db :db-handle)
-                               nil key-entry data-entry)
-      (not (opts :overwrite)) (.putNoOverwrite
-                               (db :db-handle)
-                               nil key-entry data-entry)
-      :else (.put (db :db-handle) nil key-entry data-entry))))
+    (when (and (opts :no-dup-data) (opts :no-overwrite))
+      :flame-out) ; TODO: Implement this
+    (cond (opts :no-dup-data)  (.putNoDupData
+                                (db :db-handle) nil key-entry data-entry)
+          (opts :no-overwrite) (.putNoOverwrite
+                                (db :db-handle) nil key-entry data-entry)
+          :else (.put (db :db-handle) nil key-entry data-entry))))
 
 
 ;; TODO: Error handling?
@@ -204,6 +205,7 @@
 
 
 ;; TODO: Error handling?
+;; TODO: Write tests to check "both" search mode.
 (defn db-cursor-search
   "Optional keyword arguments:
      :data  --- if specified, positions the cursor by both key and :data values
@@ -251,13 +253,26 @@
         [])))
 
 
-;; TODO: db-cursor-put
+(defn db-cursor-put [db-cursor key data & opts-args]
+  (let [opts       (apply hash-map opts-args)
+        key-entry  (marshal-db-entry key)
+        data-entry (marshal-db-entry data)]
+    (when (and (opts :no-dup-data) (opts :no-overwrite))
+      :flame-out) ; TODO: Implement this
+    (cond (opts :no-dup-data)  (.putNoDupData
+                                (db-cursor :db-cursor-handle) key-entry data-entry)
+          (opts :no-overwrite) (.putNoOverwrite
+                                (db-cursor :db-cursor-handle) key-entry data-entry)
+          :else (.put (db-cursor :db-cursor-handle) key-entry data-entry))))
 
 
 ;; TODO: db-cursor-delete
 
 
 ;; TODO: db-cursor-replace
+
+
+;; TODO: Write functions to manipulate the cursor's cache mode
 
 
 
