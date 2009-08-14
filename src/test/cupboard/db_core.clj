@@ -87,7 +87,7 @@
     (is (= (db-get *db* "set")     ["set" #{:one 2 'three}]))))
 
 
-(deftest cursors []
+(deftest cursors
   (let [data1 #{:one 1 :two 2 :three "three" :four "five six seven eight"}
         data2 "hello world"
         data3 3.3
@@ -100,3 +100,20 @@
       (is (= (db-cursor-get cur1 "a")
              (list ["a" data1] ["b" data2] ["c" data3] ["d" data4])))
       (db-cursor-close cur1))))
+
+
+(deftest indices
+  (let [db-sec (db-sec-open *db-env* *db* "idx1" :allow-create true :key-creator-fn :last-name)
+        data1 {:id 1 :first-name "Aardvark" :last-name "Aardvarkov"}
+        data2 {:id 2 :first-name "Baran" :last-name "Baranovich"}
+        data3 {:id 3 :first-name "Beleg" :last-name "Cuthalion"}]
+    (db-put *db* 1 data1)
+    (db-put *db* 2 data2)
+    (db-put *db* 3 data3)
+    (is (= (db-get *db* 1) [1 data1]))
+    (is (= (db-sec-get db-sec "Cuthalion") [3 data3]))
+    (is (= (db-sec-get db-sec "Balkonsky") []))
+    (db-sec-delete db-sec "Baranovich")
+    (is (= (db-get *db* 2) []))
+    (is (= (db-sec-get db-sec "Baranovich") []))
+    (db-sec-close db-sec)))

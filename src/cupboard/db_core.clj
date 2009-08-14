@@ -329,10 +329,13 @@
         opts             (merge defaults (apply hash-map opts-args))
         search-key-entry (marshal-db-entry search-key)
         key-entry        (DatabaseEntry.)
-        data-entry       (DatabaseEntry.)]
-    (.get (db-sec :db-sec-handle) nil
-          search-key-entry key-entry data-entry (opts :lock-mode))
-    [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]))
+        data-entry       (DatabaseEntry.)
+        result           (.get (db-sec :db-sec-handle) nil
+                               search-key-entry key-entry data-entry
+                               (opts :lock-mode))]
+    (if (= result OperationStatus/SUCCESS)
+        [(unmarshal-db-entry key-entry) (unmarshal-db-entry data-entry)]
+        [])))
 
 
 ;; TODO: Error handling?
