@@ -1,6 +1,6 @@
 (ns cupboard.db-core
-  (:use [cupboard.marshal])
-  (:require [clojure.contrib.java-utils :as c.c.java-utils])
+  (:use [clojure.contrib java-utils])
+  (:use [cupboard marshal])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
   (:import [com.sleepycat.je Database DatabaseConfig])
@@ -56,6 +56,19 @@
 
 
 ;;; ----------------------------------------------------------------------
+;;; convenience macro definition macro
+;;; ----------------------------------------------------------------------
+
+(defmacro def-with-db-macro [macro-name open-fn close-fn]
+  `(defmacro ~macro-name [var# [& open-args#] & body#]
+     `(let [~var# (apply ~'~open-fn [~@open-args#])]
+        (try
+         ~@body#
+         (finally (~'~close-fn ~var#))))))
+
+
+
+;;; ----------------------------------------------------------------------
 ;;; database environments
 ;;; ----------------------------------------------------------------------
 
@@ -63,7 +76,7 @@
   (let [defaults {:allow-create  false
                   :read-only     false
                   :transactional false}
-        dir      (c.c.java-utils/file dir)
+        dir      (file dir)
         conf     (merge defaults (apply hash-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
                    (.setAllowCreate   (conf :allow-create))
@@ -76,22 +89,20 @@
       :env-handle (Environment. dir conf-obj))))
 
 
-;; TODO: EnvironmentMutableConfig handling
-
-
 (defn db-env-close [db-env]
   (.cleanLog (db-env :env-handle))
   (.close (db-env :env-handle)))
 
 
-;; TODO: Environment statistics gathering
-
-
-;; TODO: Convenience with-db-env macro
+(def-with-db-macro with-db-env db-env-open db-env-close)
 
 
 (defn db-env-sync [db-env]
   (.sync (db-env :env-handle)))
+
+
+;; TODO: EnvironmentMutableConfig handling
+;; TODO: Environment statistics gathering
 
 
 
@@ -129,7 +140,7 @@
   (.close (db :db-handle)))
 
 
-;; TODO: Convenience with-db macro
+(def-with-db-macro with-db db-open db-close)
 
 
 (defn db-sync [db]
@@ -138,11 +149,7 @@
 
 
 ;; TODO: (defn db-preload [db & preload-conf-args] ...)
-
-
 ;; TODO: (defn db-remove [db-env name] ...)
-
-
 ;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
 ;; args: {:txn handle :count false}
 
@@ -222,7 +229,7 @@
   (.close (db-sec :db-handle)))
 
 
-;; TODO: Convenience with-db-sec macro
+(def-with-db-macro with-db-sec db-sec-open db-sec-close)
 
 
 (defn db-sec-get [db-sec search-key & opts-args]
@@ -269,7 +276,7 @@
   (.close (db-cursor :cursor-handle)))
 
 
-;; TODO: Convenience with-db-cursor macro
+(def-with-db-macro with-db-cursor db-cursor-open db-cursor-close)
 
 
 ;; TODO: Write tests to check "both" search mode.
@@ -413,6 +420,9 @@
 
 (defn db-join-cursor-close [db-join-cursor]
   (.close (db-join-cursor :join-cursor-handle)))
+
+
+(def-with-db-macro with-db-join-cursor db-join-cursor-open db-join-cursor-close)
 
 
 (defn db-join-cursor-next [db-join-cursor & opts-args]

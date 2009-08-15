@@ -1,4 +1,5 @@
 (ns cupboard.utils
+  (:use [clojure.contrib java-utils])
   (:import [java.io File IOException FileNotFoundException])
   (:import [java.text SimpleDateFormat ParseException])
   (:import [java.util Date TimeZone]))
@@ -48,7 +49,7 @@
 
 
 (defn rmdir-recursive [dir]
-  (let [dir (if (= File (class dir)) dir (File. dir))]
+  (let [dir (file dir)]
     (when-not (.exists dir)
       (throw (FileNotFoundException.
               (str "Not found for deletion: " (.getAbsolutePath dir)))))
