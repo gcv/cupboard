@@ -37,22 +37,6 @@
 ;;; tests
 ;;; ----------------------------------------------------------------------
 
-(deftest structs
-  (is (db-env? *db-env*))
-  (is (db? *db*))
-  (let [cur1 (db-cursor-open *db*)]
-    (is (db-cursor? cur1))
-    (is (db-cursor-primary? cur1))
-    (db-cursor-close cur1))
-  (let [db-sec (db-sec-open *db-env* *db* "idx1" :allow-create true)
-        cur2 (db-cursor-open db-sec)]
-    (is (db-sec? db-sec))
-    (is (db-cursor? cur2))
-    (is (db-cursor-sec? cur2))
-    (db-cursor-close cur2)
-    (db-sec-close db-sec)))
-
-
 (deftest basics
   (db-put *db* "one" 1)
   (is (= (db-get *db* "one") ["one" 1]))

@@ -25,12 +25,6 @@
   :db-handle)
 
 
-(defstruct db-sec
-  :name
-  :conf
-  :db-sec-handle)
-
-
 (defstruct db-cursor
   :conf
   :cursor-handle)
@@ -42,28 +36,10 @@
   :join-cursor-handle)
 
 
-(defn db-env?
-  "Returns true if the given struct represents a database environment."
-  [s]
-  (contains? s :env-handle))
-
-
-(defn db?
+(defn db-primary?
   "Returns true if the given struct represents a primary database."
   [s]
-  (contains? s :db-handle))
-
-
-(defn db-sec?
-  "Returns true if the given struct represents a secondary database."
-  [s]
-  (contains? s :db-sec-handle))
-
-
-(defn db-cursor?
-  "Returns true if the given struct represents a database cursor."
-  [s]
-  (contains? s :cursor-handle))
+  (= Database (class (s :db-handle))))
 
 
 (defn db-cursor-primary?
@@ -76,12 +52,6 @@
   "Returns true if the given struct represents a secondary database cursor."
   [s]
   (= SecondaryCursor (class (s :cursor-handle))))
-
-
-(defn db-join-cursor?
-  "Returns true if the given struct represents a join cursor."
-  [s]
-  (= JoinCursor (class (s :join-cursor-handle))))
 
 
 
@@ -110,9 +80,6 @@
 
 
 (defn db-env-close [db-env]
-  ;; TODO: Close all open database handles in this environment (be
-  ;; sure to use the Clojure db-close function).
-  ;; TODO: Clear out the env-handle afterwards to avoid using it.
   (.cleanLog (db-env :env-handle))
   (.close (db-env :env-handle)))
 
@@ -188,8 +155,6 @@
   (let [opts       (apply hash-map opts-args)
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
-    (when (and (opts :no-dup-data) (opts :no-overwrite))
-      :flame-out) ; TODO: Implement this
     (cond (opts :no-dup-data)  (.putNoDupData
                                 (db :db-handle) nil key-entry data-entry)
           (opts :no-overwrite) (.putNoOverwrite
@@ -224,7 +189,7 @@
 ;;; secondary databases (indices)
 ;;; ----------------------------------------------------------------------
 
-(defn db-sec-open [db-env db name & conf-args]
+(defn db-sec-open [db-env db-primary name & conf-args]
   (let [defaults    {:key-creator-fn    first
                      :allow-create      false
                      :sorted-duplicates false
@@ -244,18 +209,17 @@
                       (.setAllowCreate      (conf :allow-create))
                       (.setSortedDuplicates (conf :sorted-duplicates))
                       (.setAllowPopulate    (conf :allow-populate)))]
-    (struct-map db-sec
+    (struct-map db
       :name name
       :conf conf
-      :db-sec-handle (.openSecondaryDatabase
-                      (db-env :env-handle)
-                      nil
-                      name (db :db-handle) conf-obj))))
+      :db-handle (.openSecondaryDatabase
+                  (db-env :env-handle)
+                  nil
+                  name (db-primary :db-handle) conf-obj))))
 
 
 (defn db-sec-close [db-sec]
-  ;; TODO: Deal with all open cursors on the database.
-  (.close (db-sec :db-sec-handle)))
+  (.close (db-sec :db-handle)))
 
 
 ;; TODO: Convenience with-db-sec macro
@@ -267,7 +231,7 @@
         search-key-entry (marshal-db-entry search-key)
         key-entry        (DatabaseEntry.)
         data-entry       (DatabaseEntry.)
-        result           (.get (db-sec :db-sec-handle) nil
+        result           (.get (db-sec :db-handle) nil
                                search-key-entry key-entry data-entry
                                (opts :lock-mode))]
     (unmarshal-db-entry* result key-entry data-entry)))
@@ -275,7 +239,7 @@
 
 (defn db-sec-delete [db-sec search-key]
   (let [search-entry (marshal-db-entry search-key)]
-    (.delete (db-sec :db-sec-handle) nil search-entry)))
+    (.delete (db-sec :db-handle) nil search-entry)))
 
 
 
@@ -296,9 +260,9 @@
                    (.setReadUncommitted (conf :read-uncommitted)))]
     (struct-map db-cursor
       :conf conf
-      :cursor-handle (if (db? db)
+      :cursor-handle (if (db-primary? db)
                          (.openCursor (db :db-handle) nil conf-obj)
-                         (.openSecondaryCursor (db :db-sec-handle) nil conf-obj)))))
+                         (.openSecondaryCursor (db :db-handle) nil conf-obj)))))
 
 
 (defn db-cursor-close [db-cursor]
@@ -407,13 +371,9 @@
 
 
 (defn db-cursor-put [db-cursor key data & opts-args]
-  (when (db-cursor-sec? db-cursor)
-    :flame-out) ; TODO: Implement this
   (let [opts       (apply hash-map opts-args)
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
-    (when (and (opts :no-dup-data) (opts :no-overwrite))
-      :flame-out) ; TODO: Implement this
     (cond (opts :no-dup-data)  (.putNoDupData
                                 (db-cursor :cursor-handle) key-entry data-entry)
           (opts :no-overwrite) (.putNoOverwrite
@@ -430,8 +390,6 @@
 (defn db-cursor-replace
   "Replaces the data entry of the record the cursor currently points to."
   [db-cursor new-data]
-  (when (db-cursor-sec? db-cursor)
-    :flame-out) ; TODO: Implement this
   (.putCurrent (db-cursor :cursor-handle) (marshal-db-entry new-data)))
 
 
@@ -446,7 +404,7 @@
         pdb-obj  (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
     (struct-map db-join-cursor
       :conf    conf
-      :cursors db-cursors            ; TODO: Do we want the overhead of tracking these here?
+      :cursors db-cursors
       :join-cursor-handle (.join
                            pdb-obj
                            (into-array (map :cursor-handle db-cursors))
