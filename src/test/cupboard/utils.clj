@@ -1,6 +1,6 @@
 (ns test.cupboard.utils
-  (:use [clojure.contrib.test-is])
-  (:use [cupboard.utils]))
+  (:use [clojure.contrib test-is])
+  (:use [cupboard utils]))
 
 
 (deftest date-routines

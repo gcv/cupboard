@@ -4,7 +4,7 @@
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
   (:import [com.sleepycat.je EnvironmentConfig Environment])
   (:import [com.sleepycat.je Database DatabaseConfig])
-  (:import [com.sleepycat.je Cursor CursorConfig])
+  (:import [com.sleepycat.je Cursor SecondaryCursor JoinCursor CursorConfig JoinConfig])
   (:import [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
 
 
@@ -40,34 +40,53 @@
   :db-cursor-handle)
 
 
-(defn db-env? [s]
+(defstruct db-join-cursor
+  :db
+  :conf
+  :db-cursors
+  :db-join-cursor-handle)
+
+
+(defn db-env?
   "Returns true if the given struct represents a database environment."
+  [s]
   (contains? s :env-handle))
 
 
-(defn db? [s]
+(defn db?
   "Returns true if the given struct represents a primary database."
+  [s]
   (contains? s :db-handle))
 
 
-(defn db-sec? [s]
+(defn db-sec?
   "Returns true if the given struct represents a secondary database."
+  [s]
   (contains? s :db-sec-handle))
 
 
-(defn db-cursor? [s]
+(defn db-cursor?
   "Returns true if the given struct represents a database cursor."
+  [s]
   (contains? s :db-cursor-handle))
 
 
-(defn db-cursor-primary? [s]
+(defn db-cursor-primary?
   "Returns true if the given struct represents a primary database cursor."
+  [s]
   (db? (s :db)))
 
 
-(defn db-cursor-sec? [s]
+(defn db-cursor-sec?
   "Returns true if the given struct represents a secondary database cursor."
+  [s]
   (db-sec? (s :db)))
+
+
+(defn db-join-cursor?
+  "Returns true if the given struct represents a join cursor."
+  [s]
+  (contains? s :db-join-cursor-handle))
 
 
 
@@ -453,3 +472,40 @@
 
 
 ;; TODO: Write functions to manipulate the cursor's cache mode
+
+
+;; TODO: Error handling?
+(defn db-join-cursor-open [db-cursors & conf-args]
+  ;; check that all cursors refer to the same database
+  (when-not (= 1 (count (set (map :db db-cursors))))
+    :flame-out) ; TODO: Implement this
+  (let [defaults {:no-sort false}
+        conf     (merge defaults (apply hash-map conf-args))
+        conf-obj (doto (JoinConfig.)
+                   (.setNoSort (conf :no-sort)))
+        db       (((first db-cursors) :db) :db)]
+    (struct-map db-join-cursor
+      :db         db
+      :conf       conf
+      :db-cursors db-cursors            ; TODO: Do we want the overhead of tracking these here?
+      :db-join-cursor-handle (.join
+                              (db :db-handle)
+                              (into-array (map :db-cursor-handle db-cursors))
+                              conf-obj))))
+
+
+;; TODO: Error handling?
+(defn db-join-cursor-close [db-join-cursor]
+  (.close (db-join-cursor :db-join-cursor-handle)))
+
+
+;; TODO: Error handling?
+(defn db-join-cursor-next [db-join-cursor & opts-args]
+  (let [defaults   {:lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        key-entry  (marshal-db-entry* opts :key)
+        data-entry (marshal-db-entry* opts :data)
+        result     (.getNext
+                    (db-join-cursor :db-join-cursor-handle)
+                    key-entry data-entry (opts :lock-mode))]
+    (unmarshal-db-entry* result key-entry data-entry)))

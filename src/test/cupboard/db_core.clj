@@ -1,5 +1,5 @@
 (ns test.cupboard.db-core
-  (:use [clojure.contrib test-is profile])
+  (:use [clojure.contrib test-is])
   (:use [cupboard utils db-core]))
 
 
@@ -164,3 +164,50 @@
       (is (= (db-cursor-next cur1) [3 data3]))
       (db-cursor-close cur1))
     (db-sec-close db-sec)))
+
+
+(deftest joins
+  (let [idx-color (db-sec-open
+                   *db-env* *db* "idx-color"
+                   :allow-create true :sorted-duplicates true
+                   :key-creator-fn :color)
+        idx-year  (db-sec-open
+                   *db-env* *db* "idx-year"
+                   :allow-create true :sorted-duplicates true
+                   :key-creator-fn :year)
+        idx-awd   (db-sec-open
+                   *db-env* *db* "idx-awd"
+                   :allow-create true :sorted-duplicates true
+                   :key-creator-fn :awd)
+        car-1     {:marque "BMW"   :model "X3"       :year 2006 :color "blue"  :awd true}
+        car-2     {:marque "Audi"  :model "TT"       :year 2002 :color "blue"  :awd true}
+        car-3     {:marque "Audi"  :model "allroad"  :year 2002 :color "grey"  :awd true}
+        car-4     {:marque "Audi"  :model "A6 Avant" :year 2006 :color "white" :awd true}
+        car-5     {:marque "Audi"  :model "Q5"       :year 2010 :color "white" :awd true}
+        car-6     {:marque "Ford"  :model "Taurus"   :year 1996 :color "beige" :awd false}
+        car-7     {:marque "BMW"   :model "330i"     :year 2003 :color "blue"  :awd false}
+        car-8     {:marque "Eagle" :model "Summit"   :year 1994 :color "blue"  :awd false}
+        car-9     {:marque "Audi"  :model "A4"       :year 2003 :color "blue"  :awd false}]
+    (db-put *db* 1 car-1)
+    (db-put *db* 2 car-2)
+    (db-put *db* 3 car-3)
+    (db-put *db* 4 car-4)
+    (db-put *db* 5 car-5)
+    (db-put *db* 6 car-6)
+    (db-put *db* 7 car-7)
+    (db-put *db* 8 car-8)
+    (db-put *db* 9 car-9)
+    (let [c1 (db-cursor-open idx-year)
+          c2 (db-cursor-open idx-color)]
+      (is (= (db-cursor-search c1 2003) [7 car-7]))
+      (is (= (db-cursor-search c2 "blue") [1 car-1]))
+      (let [j (db-join-cursor-open [c1 c2])]
+        (is (= (db-join-cursor-next j) [7 car-7]))
+        (is (= (db-join-cursor-next j) [9 car-9]))
+        (is (= (db-join-cursor-next j) []))
+        (db-join-cursor-close j))
+      (db-cursor-close c2)
+      (db-cursor-close c1))
+    (db-sec-close idx-awd)
+    (db-sec-close idx-year)
+    (db-sec-close idx-color)))
