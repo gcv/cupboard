@@ -10,7 +10,7 @@
 
 
 ;;; ----------------------------------------------------------------------
-;;; database environments
+;;; useful structs
 ;;; ----------------------------------------------------------------------
 
 (defstruct db-env
@@ -18,6 +18,62 @@
   :conf
   :env-handle)
 
+
+(defstruct db
+  :env
+  :name
+  :conf
+  :db-handle)
+
+
+(defstruct db-sec
+  :env
+  :name
+  :db
+  :conf
+  :db-sec-handle)
+
+
+(defstruct db-cursor
+  :db
+  :conf
+  :db-cursor-handle)
+
+
+(defn db-env? [s]
+  "Returns true if the given struct represents a database environment."
+  (contains? s :env-handle))
+
+
+(defn db? [s]
+  "Returns true if the given struct represents a primary database."
+  (contains? s :db-handle))
+
+
+(defn db-sec? [s]
+  "Returns true if the given struct represents a secondary database."
+  (contains? s :db-sec-handle))
+
+
+(defn db-cursor? [s]
+  "Returns true if the given struct represents a database cursor."
+  (contains? s :db-cursor-handle))
+
+
+(defn db-cursor-primary? [s]
+  "Returns true if the given struct represents a primary database cursor."
+  (db? (s :db)))
+
+
+(defn db-cursor-sec? [s]
+  "Returns true if the given struct represents a secondary database cursor."
+  (db-sec? (s :db)))
+
+
+
+;;; ----------------------------------------------------------------------
+;;; database environments
+;;; ----------------------------------------------------------------------
 
 ;; TODO: Error handling?
 (defn db-env-open [dir & conf-args]
@@ -62,13 +118,6 @@
 ;;; ----------------------------------------------------------------------
 ;;; primary databases
 ;;; ----------------------------------------------------------------------
-
-(defstruct db
-  :env
-  :name
-  :conf
-  :db-handle)
-
 
 ;; TODO: Error handling?
 (defn db-close [db]
@@ -169,147 +218,8 @@
 
 
 ;;; ----------------------------------------------------------------------
-;;; primary database cursors
-;;; ----------------------------------------------------------------------
-
-(defstruct db-cursor
-  :db
-  :conf
-  :db-cursor-handle)
-
-
-;; TODO: Error handling?
-;; TODO: Track cursors in the db struct!!! Clean them up when done!!!
-(defn db-cursor-open [db & conf-args]
-  (let [defaults {:read-committed   true
-                  :read-uncommitted false}
-        conf     (merge defaults (apply hash-map conf-args))
-        conf-obj (doto (CursorConfig.)
-                   (.setReadCommitted   (conf :read-committed))
-                   (.setReadUncommitted (conf :read-uncommitted)))]
-    (struct-map db-cursor
-      :db   db
-      :conf conf
-      :db-cursor-handle (.openCursor (db :db-handle) nil conf-obj))))
-
-
-;; TODO: Error handling?
-;; TODO: REMOVE CLOSED CURSORS FROM THE db struct!!!
-(defn db-cursor-close [db-cursor]
-  (.close (db-cursor :db-cursor-handle)))
-
-
-;; TODO: Convenience with-db-cursor macro
-
-
-;; TODO: Error handling?
-;; TODO: Write tests to check "both" search mode.
-(defn db-cursor-search
-  "Optional keyword arguments:
-     :data  --- if specified, positions the cursor by both key and :data values
-     :exact --- if true, match the key and optional :data exactly"
-  [db-cursor key & opts-args]
-  (let [defaults   {:exact     false
-                    :lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
-        exact      (opts :exact)
-        key-entry  (marshal-db-entry key)
-        data-entry (marshal-db-entry* opts :data)
-        search-fn  (cond (and (contains? opts :data) :exact) #(.getSearchBoth %1 %2 %3 %4)
-                         (contains? opts :data)              #(.getSearchBothRange %1 %2 %3 %4)
-                         exact                               #(.getSearchKey %1 %2 %3 %4)
-                         :else                               #(.getSearchKeyRange %1 %2 %3 %4))
-        result     (search-fn (db-cursor :db-cursor-handle)
-                              key-entry data-entry (opts :lock-mode))]
-    (unmarshal-db-entry* result key-entry data-entry)))
-
-
-;; TODO: Error handling?
-(defmacro def-db-cursor-simple-position [name java-fn]
-  `(defn ~name
-     "Optional keyword arguments:
-        :key  --- if specified, reuses the given DatabaseEntry
-        :data --- if specified, reuses the given DatabaseEntry"
-     [db-cursor# & opts-args#]
-     (let [defaults#   {:lock-mode LockMode/DEFAULT}
-           opts#       (merge defaults# (apply hash-map opts-args#))
-           key-entry#  (marshal-db-entry* opts# :key)
-           data-entry# (marshal-db-entry* opts# :data)
-           result#     (~java-fn (db-cursor# :db-cursor-handle)
-                                 key-entry# data-entry# (opts# :lock-mode))]
-       (unmarshal-db-entry* result# key-entry# data-entry#))))
-
-(def-db-cursor-simple-position db-cursor-first .getFirst)
-(def-db-cursor-simple-position db-cursor-current .getCurrent)
-(def-db-cursor-simple-position db-cursor-last .getLast)
-
-
-;; TODO: Error handling?
-(defn db-cursor-next
-  "Optional keyword arguments:
-     :key  --- if specified, reuses the given DatabaseEntry
-     :data --- if specified, reuses the given DatabaseEntry"
-  [db-cursor & opts-args]
-  (let [defaults   {:direction :forward
-                    :skip-dups false
-                    :lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
-        direction  (opts :direction)
-        skip-dups  (opts :skip-dups)
-        key-entry  (marshal-db-entry* opts :key)
-        data-entry (marshal-db-entry* opts :data)
-        next-fn    (cond (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
-                         (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
-                         (= direction :forward)                 #(.getNext %1 %2 %3 %4)
-                         (= direction :back)                    #(.getPrev %1 %2 %3 %4))
-        result     (next-fn (db-cursor :db-cursor-handle)
-                            key-entry data-entry (opts :lock-mode))]
-    (unmarshal-db-entry* result key-entry data-entry)))
-
-
-;; TODO: Error handling?
-(defn db-cursor-put [db-cursor key data & opts-args]
-  (let [opts       (apply hash-map opts-args)
-        key-entry  (marshal-db-entry key)
-        data-entry (marshal-db-entry data)]
-    (when (and (opts :no-dup-data) (opts :no-overwrite))
-      :flame-out) ; TODO: Implement this
-    (cond (opts :no-dup-data)  (.putNoDupData
-                                (db-cursor :db-cursor-handle) key-entry data-entry)
-          (opts :no-overwrite) (.putNoOverwrite
-                                (db-cursor :db-cursor-handle) key-entry data-entry)
-          :else (.put (db-cursor :db-cursor-handle) key-entry data-entry))))
-
-
-;; TODO: Error handling?
-(defn db-cursor-delete
-  "Deletes the record the cursor currently points to."
-  [db-cursor]
-  (.delete (db-cursor :db-cursor-handle)))
-
-
-;; TODO: Error handling?
-(defn db-cursor-replace
-  "Replaces the data entry of the record the cursor currently points to."
-  [db-cursor new-data]
-  (.putCurrent (db-cursor :db-cursor-handle) (marshal-db-entry new-data)))
-
-
-;; TODO: Write functions to manipulate the cursor's cache mode
-
-
-
-;;; ----------------------------------------------------------------------
 ;;; secondary databases (indices)
 ;;; ----------------------------------------------------------------------
-
-(defstruct db-sec
-  :env
-  :name
-  :db
-  :conf
-  :db-sec-handle)
-
 
 ;; TODO: Error handling?
 (defn db-sec-open [db-env db name & conf-args]
@@ -372,3 +282,174 @@
 (defn db-sec-delete [db-sec search-key]
   (let [search-entry (marshal-db-entry search-key)]
     (.delete (db-sec :db-sec-handle) nil search-entry)))
+
+
+
+;;; ----------------------------------------------------------------------
+;;; database cursors
+;;;
+;;; This code supports both primary and secondary cursors, and treats them
+;;; differently only where absolutely necessary. Calling code should simply
+;;; pass the appropriate database into db-cursor-open.
+;;; ----------------------------------------------------------------------
+
+;; TODO: Error handling?
+;; TODO: Track cursors in the db struct!!! Clean them up when done!!!
+(defn db-cursor-open [db & conf-args]
+  (let [defaults {:read-committed   true
+                  :read-uncommitted false}
+        conf     (merge defaults (apply hash-map conf-args))
+        conf-obj (doto (CursorConfig.)
+                   (.setReadCommitted   (conf :read-committed))
+                   (.setReadUncommitted (conf :read-uncommitted)))]
+    (struct-map db-cursor
+      :db   db
+      :conf conf
+      :db-cursor-handle (if (db? db)
+                            (.openCursor (db :db-handle) nil conf-obj)
+                            (.openSecondaryCursor (db :db-sec-handle) nil conf-obj)))))
+
+
+;; TODO: Error handling?
+;; TODO: REMOVE CLOSED CURSORS FROM THE db struct!!!
+(defn db-cursor-close [db-cursor]
+  (.close (db-cursor :db-cursor-handle)))
+
+
+;; TODO: Convenience with-db-cursor macro
+
+
+;; TODO: Error handling?
+;; TODO: Write tests to check "both" search mode.
+(defn db-cursor-search
+  "Optional keyword arguments:
+     :pkey  --- for cursors on secondary databases only, specifies the primary key value
+     :data  --- if specified, positions the cursor by both key and :data values
+     :exact --- if true, match the key and optional :data exactly"
+  [db-cursor key & opts-args]
+  (let [defaults   {:exact     false
+                    :lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        exact      (opts :exact)
+        key-entry  (marshal-db-entry key)
+        pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
+        data-entry (marshal-db-entry* opts :data)
+        ;; search-fn1 is for primary database cursor lookups
+        search-fn1 (cond
+                     (and (contains? opts :data) :exact) #(.getSearchBoth %1 %2 %3 %4)
+                     (contains? opts :data)              #(.getSearchBothRange %1 %2 %3 %4)
+                     exact                               #(.getSearchKey %1 %2 %3 %4)
+                     :else                               #(.getSearchKeyRange %1 %2 %3 %4))
+        ;; search-fn2 is for secondary database cursor lookups
+        search-fn2 (cond
+                     (and (contains? opts :pkey) :exact) #(.getSearchBoth %1 %2 %3 %4 %5)
+                     (contains? opts :pkey)              #(.getSearchBothRange %1 %2 %3 %4 %5)
+                     exact                               #(.getSearchKey %1 %2 %3 %4 %5)
+                     :else                               #(.getSearchKeyRange %1 %2 %3 %4 %5))
+        result     (if (db-cursor-primary? db-cursor)
+                       (search-fn1 (db-cursor :db-cursor-handle)
+                                   key-entry data-entry (opts :lock-mode))
+                       (search-fn2 (db-cursor :db-cursor-handle)
+                                   key-entry pkey-entry data-entry (opts :lock-mode)))]
+    (unmarshal-db-entry* result
+                         (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
+                         data-entry)))
+
+
+;; TODO: Error handling?
+(defmacro def-db-cursor-simple-position [name java-fn]
+  `(defn ~name
+     "Optional keyword arguments:
+        :pkey --- for cursors on secondary databases only, specifies the primary key value
+        :key  --- if specified, reuses the given DatabaseEntry
+        :data --- if specified, reuses the given DatabaseEntry"
+     [db-cursor# & opts-args#]
+     (let [defaults#   {:lock-mode LockMode/DEFAULT}
+           opts#       (merge defaults# (apply hash-map opts-args#))
+           key-entry#  (marshal-db-entry* opts# :key)
+           pkey-entry# (when (db-cursor-sec? db-cursor#) (marshal-db-entry* opts# :pkey))
+           data-entry# (marshal-db-entry* opts# :data)
+           result#     (if (db-cursor-primary? db-cursor#)
+                           (~java-fn (db-cursor# :db-cursor-handle)
+                                     key-entry# data-entry# (opts# :lock-mode))
+                           (~java-fn (db-cursor# :db-cursor-handle)
+                                     key-entry# pkey-entry# data-entry# (opts# :lock-mode)))]
+       (unmarshal-db-entry* result#
+                            (if (db-cursor-primary? db-cursor#) key-entry# pkey-entry#)
+                            data-entry#))))
+
+(def-db-cursor-simple-position db-cursor-first .getFirst)
+(def-db-cursor-simple-position db-cursor-current .getCurrent)
+(def-db-cursor-simple-position db-cursor-last .getLast)
+
+
+;; TODO: Error handling?
+(defn db-cursor-next
+  "Optional keyword arguments:
+     :key  --- if specified, reuses the given DatabaseEntry
+     :data --- if specified, reuses the given DatabaseEntry"
+  [db-cursor & opts-args]
+  (let [defaults   {:direction :forward
+                    :skip-dups false
+                    :lock-mode LockMode/DEFAULT}
+        opts       (merge defaults (apply hash-map opts-args))
+        direction  (opts :direction)
+        skip-dups  (opts :skip-dups)
+        key-entry  (marshal-db-entry* opts :key)
+        pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
+        data-entry (marshal-db-entry* opts :data)
+        ;; next-fn1 is for primary database cursors
+        next-fn1   (cond
+                     (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
+                     (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
+                     (= direction :forward)                 #(.getNext %1 %2 %3 %4)
+                     (= direction :back)                    #(.getPrev %1 %2 %3 %4))
+        ;; next-fn2 is for secondary database cursors
+        next-fn2   (cond
+                     (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4 %5)
+                     (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4 %5)
+                     (= direction :forward)                 #(.getNext %1 %2 %3 %4 %5)
+                     (= direction :back)                    #(.getPrev %1 %2 %3 %4 %5))
+        result     (if (db-cursor-primary? db-cursor)
+                       (next-fn1 (db-cursor :db-cursor-handle)
+                                 key-entry data-entry (opts :lock-mode))
+                       (next-fn2 (db-cursor :db-cursor-handle)
+                                 key-entry pkey-entry data-entry (opts :lock-mode)))]
+    (unmarshal-db-entry* result
+                         (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
+                         data-entry)))
+
+
+;; TODO: Error handling?
+(defn db-cursor-put [db-cursor key data & opts-args]
+  (when (db-cursor-sec? db-cursor)
+    :flame-out) ; TODO: Implement this
+  (let [opts       (apply hash-map opts-args)
+        key-entry  (marshal-db-entry key)
+        data-entry (marshal-db-entry data)]
+    (when (and (opts :no-dup-data) (opts :no-overwrite))
+      :flame-out) ; TODO: Implement this
+    (cond (opts :no-dup-data)  (.putNoDupData
+                                (db-cursor :db-cursor-handle) key-entry data-entry)
+          (opts :no-overwrite) (.putNoOverwrite
+                                (db-cursor :db-cursor-handle) key-entry data-entry)
+          :else (.put (db-cursor :db-cursor-handle) key-entry data-entry))))
+
+
+;; TODO: Error handling?
+(defn db-cursor-delete
+  "Deletes the record the cursor currently points to."
+  [db-cursor]
+  (.delete (db-cursor :db-cursor-handle)))
+
+
+;; TODO: Error handling?
+(defn db-cursor-replace
+  "Replaces the data entry of the record the cursor currently points to."
+  [db-cursor new-data]
+  (when (db-cursor-sec? db-cursor)
+    :flame-out) ; TODO: Implement this
+  (.putCurrent (db-cursor :db-cursor-handle) (marshal-db-entry new-data)))
+
+
+;; TODO: Write functions to manipulate the cursor's cache mode

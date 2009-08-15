@@ -37,6 +37,22 @@
 ;;; tests
 ;;; ----------------------------------------------------------------------
 
+(deftest structs
+  (is (db-env? *db-env*))
+  (is (db? *db*))
+  (let [cur1 (db-cursor-open *db*)]
+    (is (db-cursor? cur1))
+    (is (db-cursor-primary? cur1))
+    (db-cursor-close cur1))
+  (let [db-sec (db-sec-open *db-env* *db* "idx1" :allow-create true)
+        cur2 (db-cursor-open db-sec)]
+    (is (db-sec? db-sec))
+    (is (db-cursor? cur2))
+    (is (db-cursor-sec? cur2))
+    (db-cursor-close cur2)
+    (db-sec-close db-sec)))
+
+
 (deftest basics
   (db-put *db* "one" 1)
   (is (= (db-get *db* "one") ["one" 1]))
@@ -132,4 +148,19 @@
     (db-sec-delete db-sec "Baranovich")
     (is (= (db-get *db* 2) []))
     (is (= (db-sec-get db-sec "Baranovich") []))
+    (db-sec-close db-sec)))
+
+
+(deftest index-cursors
+  (let [db-sec (db-sec-open *db-env* *db* "idx1" :allow-create true :key-creator-fn :last-name)
+        data1 {:id 1 :first-name "Aardvark" :last-name "Aardvarkov"}
+        data2 {:id 2 :first-name "Baran" :last-name "Baranovich"}
+        data3 {:id 3 :first-name "Beleg" :last-name "Cuthalion"}]
+    (db-put *db* 1 data1)
+    (db-put *db* 2 data2)
+    (db-put *db* 3 data3)
+    (let [cur1 (db-cursor-open db-sec)]
+      (is (= (db-cursor-search cur1 "Baran") [2 data2]))
+      (is (= (db-cursor-next cur1) [3 data3]))
+      (db-cursor-close cur1))
     (db-sec-close db-sec)))
