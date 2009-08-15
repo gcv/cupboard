@@ -20,14 +20,12 @@
 
 
 (defstruct db
-  :env
   :name
   :conf
   :db-handle)
 
 
 (defstruct db-sec
-  :env
   :name
   :db
   :conf
@@ -37,14 +35,14 @@
 (defstruct db-cursor
   :db
   :conf
-  :db-cursor-handle)
+  :cursor-handle)
 
 
 (defstruct db-join-cursor
   :db
   :conf
-  :db-cursors
-  :db-join-cursor-handle)
+  :cursors
+  :join-cursor-handle)
 
 
 (defn db-env?
@@ -68,7 +66,7 @@
 (defn db-cursor?
   "Returns true if the given struct represents a database cursor."
   [s]
-  (contains? s :db-cursor-handle))
+  (contains? s :cursor-handle))
 
 
 (defn db-cursor-primary?
@@ -86,7 +84,7 @@
 (defn db-join-cursor?
   "Returns true if the given struct represents a join cursor."
   [s]
-  (contains? s :db-join-cursor-handle))
+  (contains? s :join-cursor-handle))
 
 
 
@@ -94,7 +92,6 @@
 ;;; database environments
 ;;; ----------------------------------------------------------------------
 
-;; TODO: Error handling?
 (defn db-env-open [dir & conf-args]
   (let [defaults {:allow-create  false
                   :read-only     false
@@ -105,7 +102,7 @@
                    (.setAllowCreate   (conf :allow-create))
                    (.setReadOnly      (conf :read-only))
                    (.setTransactional (conf :transactional)))]
-    (when-not (.exists dir) (.mkdir dir)) ; TODO: mkdir -p in Java?
+    (when-not (.exists dir) (.mkdir dir))
     (struct-map db-env
       :dir  dir
       :conf conf
@@ -115,7 +112,6 @@
 ;; TODO: EnvironmentMutableConfig handling
 
 
-;; TODO: Error handling?
 (defn db-env-close [db-env]
   ;; TODO: Close all open database handles in this environment (be
   ;; sure to use the Clojure db-close function).
@@ -130,7 +126,8 @@
 ;; TODO: Convenience with-db-env macro
 
 
-;; TODO: db-env-sync
+(defn db-env-sync [db-env]
+  (.sync (db-env :env-handle)))
 
 
 
@@ -165,7 +162,6 @@
                    (.setReadOnly         (conf :read-only))
                    (.setTransactional    (conf :transactional)))]
     (struct-map db
-      :env  db-env
       :name name
       :conf conf
       :db-handle (.openDatabase
@@ -265,7 +261,6 @@
                       (.setSortedDuplicates (conf :sorted-duplicates))
                       (.setAllowPopulate    (conf :allow-populate)))]
     (struct-map db-sec
-      :env  db-env
       :db   db
       :name name
       :conf conf
@@ -324,15 +319,15 @@
     (struct-map db-cursor
       :db   db
       :conf conf
-      :db-cursor-handle (if (db? db)
-                            (.openCursor (db :db-handle) nil conf-obj)
-                            (.openSecondaryCursor (db :db-sec-handle) nil conf-obj)))))
+      :cursor-handle (if (db? db)
+                         (.openCursor (db :db-handle) nil conf-obj)
+                         (.openSecondaryCursor (db :db-sec-handle) nil conf-obj)))))
 
 
 ;; TODO: Error handling?
 ;; TODO: REMOVE CLOSED CURSORS FROM THE db struct!!!
 (defn db-cursor-close [db-cursor]
-  (.close (db-cursor :db-cursor-handle)))
+  (.close (db-cursor :cursor-handle)))
 
 
 ;; TODO: Convenience with-db-cursor macro
@@ -366,9 +361,9 @@
                      exact                               #(.getSearchKey %1 %2 %3 %4 %5)
                      :else                               #(.getSearchKeyRange %1 %2 %3 %4 %5))
         result     (if (db-cursor-primary? db-cursor)
-                       (search-fn1 (db-cursor :db-cursor-handle)
+                       (search-fn1 (db-cursor :cursor-handle)
                                    key-entry data-entry (opts :lock-mode))
-                       (search-fn2 (db-cursor :db-cursor-handle)
+                       (search-fn2 (db-cursor :cursor-handle)
                                    key-entry pkey-entry data-entry (opts :lock-mode)))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
@@ -389,9 +384,9 @@
            pkey-entry# (when (db-cursor-sec? db-cursor#) (marshal-db-entry* opts# :pkey))
            data-entry# (marshal-db-entry* opts# :data)
            result#     (if (db-cursor-primary? db-cursor#)
-                           (~java-fn (db-cursor# :db-cursor-handle)
+                           (~java-fn (db-cursor# :cursor-handle)
                                      key-entry# data-entry# (opts# :lock-mode))
-                           (~java-fn (db-cursor# :db-cursor-handle)
+                           (~java-fn (db-cursor# :cursor-handle)
                                      key-entry# pkey-entry# data-entry# (opts# :lock-mode)))]
        (unmarshal-db-entry* result#
                             (if (db-cursor-primary? db-cursor#) key-entry# pkey-entry#)
@@ -430,9 +425,9 @@
                      (= direction :forward)                 #(.getNext %1 %2 %3 %4 %5)
                      (= direction :back)                    #(.getPrev %1 %2 %3 %4 %5))
         result     (if (db-cursor-primary? db-cursor)
-                       (next-fn1 (db-cursor :db-cursor-handle)
+                       (next-fn1 (db-cursor :cursor-handle)
                                  key-entry data-entry (opts :lock-mode))
-                       (next-fn2 (db-cursor :db-cursor-handle)
+                       (next-fn2 (db-cursor :cursor-handle)
                                  key-entry pkey-entry data-entry (opts :lock-mode)))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
@@ -449,17 +444,17 @@
     (when (and (opts :no-dup-data) (opts :no-overwrite))
       :flame-out) ; TODO: Implement this
     (cond (opts :no-dup-data)  (.putNoDupData
-                                (db-cursor :db-cursor-handle) key-entry data-entry)
+                                (db-cursor :cursor-handle) key-entry data-entry)
           (opts :no-overwrite) (.putNoOverwrite
-                                (db-cursor :db-cursor-handle) key-entry data-entry)
-          :else (.put (db-cursor :db-cursor-handle) key-entry data-entry))))
+                                (db-cursor :cursor-handle) key-entry data-entry)
+          :else (.put (db-cursor :cursor-handle) key-entry data-entry))))
 
 
 ;; TODO: Error handling?
 (defn db-cursor-delete
   "Deletes the record the cursor currently points to."
   [db-cursor]
-  (.delete (db-cursor :db-cursor-handle)))
+  (.delete (db-cursor :cursor-handle)))
 
 
 ;; TODO: Error handling?
@@ -468,7 +463,7 @@
   [db-cursor new-data]
   (when (db-cursor-sec? db-cursor)
     :flame-out) ; TODO: Implement this
-  (.putCurrent (db-cursor :db-cursor-handle) (marshal-db-entry new-data)))
+  (.putCurrent (db-cursor :cursor-handle) (marshal-db-entry new-data)))
 
 
 ;; TODO: Write functions to manipulate the cursor's cache mode
@@ -485,18 +480,18 @@
                    (.setNoSort (conf :no-sort)))
         db       (((first db-cursors) :db) :db)]
     (struct-map db-join-cursor
-      :db         db
-      :conf       conf
-      :db-cursors db-cursors            ; TODO: Do we want the overhead of tracking these here?
-      :db-join-cursor-handle (.join
-                              (db :db-handle)
-                              (into-array (map :db-cursor-handle db-cursors))
-                              conf-obj))))
+      :db      db
+      :conf    conf
+      :cursors db-cursors            ; TODO: Do we want the overhead of tracking these here?
+      :join-cursor-handle (.join
+                           (db :db-handle)
+                           (into-array (map :cursor-handle db-cursors))
+                           conf-obj))))
 
 
 ;; TODO: Error handling?
 (defn db-join-cursor-close [db-join-cursor]
-  (.close (db-join-cursor :db-join-cursor-handle)))
+  (.close (db-join-cursor :join-cursor-handle)))
 
 
 ;; TODO: Error handling?
@@ -506,6 +501,6 @@
         key-entry  (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
         result     (.getNext
-                    (db-join-cursor :db-join-cursor-handle)
+                    (db-join-cursor :join-cursor-handle)
                     key-entry data-entry (opts :lock-mode))]
     (unmarshal-db-entry* result key-entry data-entry)))
