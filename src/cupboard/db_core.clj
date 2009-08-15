@@ -27,19 +27,16 @@
 
 (defstruct db-sec
   :name
-  :db
   :conf
   :db-sec-handle)
 
 
 (defstruct db-cursor
-  :db
   :conf
   :cursor-handle)
 
 
 (defstruct db-join-cursor
-  :db
   :conf
   :cursors
   :join-cursor-handle)
@@ -72,19 +69,19 @@
 (defn db-cursor-primary?
   "Returns true if the given struct represents a primary database cursor."
   [s]
-  (db? (s :db)))
+  (= Cursor (class (s :cursor-handle))))
 
 
 (defn db-cursor-sec?
   "Returns true if the given struct represents a secondary database cursor."
   [s]
-  (db-sec? (s :db)))
+  (= SecondaryCursor (class (s :cursor-handle))))
 
 
 (defn db-join-cursor?
   "Returns true if the given struct represents a join cursor."
   [s]
-  (contains? s :join-cursor-handle))
+  (= JoinCursor (class (s :join-cursor-handle))))
 
 
 
@@ -135,13 +132,6 @@
 ;;; primary databases
 ;;; ----------------------------------------------------------------------
 
-;; TODO: Error handling?
-(defn db-close [db]
-  ;; TODO: Deal with all open cursors on the database.
-  (.close (db :db-handle)))
-
-
-;; TODO: Error handling?
 ;; TODO: Add support for setting :btree-comparator and :duplicate-comparator
 ;; TODO: Add support for overriding :btree-comparator and :duplicate-comparator
 ;; (DatabaseConfig.setOverrideBtreeCompatator(), etc.)
@@ -168,10 +158,13 @@
                   (db-env :env-handle) nil name conf-obj))))
 
 
+(defn db-close [db]
+  (.close (db :db-handle)))
+
+
 ;; TODO: Convenience with-db macro
 
 
-;; TODO: Error handling?
 (defn db-sync [db]
   (when (.getDeferredWrite (db :conf))
     (.sync (db :db-handle))))
@@ -187,8 +180,6 @@
 ;; args: {:txn handle :count false}
 
 
-;; TODO: Error handling?
-;; TODO: This should return a status of some kind!
 (defn db-put
   "Optional keyword arguments:
      :no-dup-data  --- if true, then calls .putNoDupData
@@ -206,7 +197,6 @@
           :else (.put (db :db-handle) nil key-entry data-entry))))
 
 
-;; TODO: Error handling?
 (defn db-get
   "Optional keyword arguments:
      :data --- if specified, searches by both exact match of both key and :data value
@@ -224,8 +214,6 @@
     (unmarshal-db-entry* result key-entry data-entry)))
 
 
-;; TODO: Error handling?
-;; TODO: This should return a status or return code.
 (defn db-delete [db key]
   (let [key-entry (marshal-db-entry key)]
     (.delete (db :db-handle) nil key-entry)))
@@ -236,11 +224,7 @@
 ;;; secondary databases (indices)
 ;;; ----------------------------------------------------------------------
 
-;; TODO: Error handling?
 (defn db-sec-open [db-env db name & conf-args]
-  ;; TODO: Make this way smoother!
-  (when ((db :conf) :sorted-duplicates)
-    :error-out-in-flames)
   (let [defaults    {:key-creator-fn    first
                      :allow-create      false
                      :sorted-duplicates false
@@ -261,7 +245,6 @@
                       (.setSortedDuplicates (conf :sorted-duplicates))
                       (.setAllowPopulate    (conf :allow-populate)))]
     (struct-map db-sec
-      :db   db
       :name name
       :conf conf
       :db-sec-handle (.openSecondaryDatabase
@@ -270,7 +253,6 @@
                       name (db :db-handle) conf-obj))))
 
 
-;; TODO: Error handling?
 (defn db-sec-close [db-sec]
   ;; TODO: Deal with all open cursors on the database.
   (.close (db-sec :db-sec-handle)))
@@ -279,7 +261,6 @@
 ;; TODO: Convenience with-db-sec macro
 
 
-;; TODO: Error handling?
 (defn db-sec-get [db-sec search-key & opts-args]
   (let [defaults         {:lock-mode LockMode/DEFAULT}
         opts             (merge defaults (apply hash-map opts-args))
@@ -292,7 +273,6 @@
     (unmarshal-db-entry* result key-entry data-entry)))
 
 
-;; TODO: Error handling?
 (defn db-sec-delete [db-sec search-key]
   (let [search-entry (marshal-db-entry search-key)]
     (.delete (db-sec :db-sec-handle) nil search-entry)))
@@ -307,8 +287,6 @@
 ;;; pass the appropriate database into db-cursor-open.
 ;;; ----------------------------------------------------------------------
 
-;; TODO: Error handling?
-;; TODO: Track cursors in the db struct!!! Clean them up when done!!!
 (defn db-cursor-open [db & conf-args]
   (let [defaults {:read-committed   true
                   :read-uncommitted false}
@@ -317,15 +295,12 @@
                    (.setReadCommitted   (conf :read-committed))
                    (.setReadUncommitted (conf :read-uncommitted)))]
     (struct-map db-cursor
-      :db   db
       :conf conf
       :cursor-handle (if (db? db)
                          (.openCursor (db :db-handle) nil conf-obj)
                          (.openSecondaryCursor (db :db-sec-handle) nil conf-obj)))))
 
 
-;; TODO: Error handling?
-;; TODO: REMOVE CLOSED CURSORS FROM THE db struct!!!
 (defn db-cursor-close [db-cursor]
   (.close (db-cursor :cursor-handle)))
 
@@ -333,7 +308,6 @@
 ;; TODO: Convenience with-db-cursor macro
 
 
-;; TODO: Error handling?
 ;; TODO: Write tests to check "both" search mode.
 (defn db-cursor-search
   "Optional keyword arguments:
@@ -370,7 +344,6 @@
                          data-entry)))
 
 
-;; TODO: Error handling?
 (defmacro def-db-cursor-simple-position [name java-fn]
   `(defn ~name
      "Optional keyword arguments:
@@ -397,7 +370,6 @@
 (def-db-cursor-simple-position db-cursor-last .getLast)
 
 
-;; TODO: Error handling?
 (defn db-cursor-next
   "Optional keyword arguments:
      :key  --- if specified, reuses the given DatabaseEntry
@@ -434,7 +406,6 @@
                          data-entry)))
 
 
-;; TODO: Error handling?
 (defn db-cursor-put [db-cursor key data & opts-args]
   (when (db-cursor-sec? db-cursor)
     :flame-out) ; TODO: Implement this
@@ -450,14 +421,12 @@
           :else (.put (db-cursor :cursor-handle) key-entry data-entry))))
 
 
-;; TODO: Error handling?
 (defn db-cursor-delete
   "Deletes the record the cursor currently points to."
   [db-cursor]
   (.delete (db-cursor :cursor-handle)))
 
 
-;; TODO: Error handling?
 (defn db-cursor-replace
   "Replaces the data entry of the record the cursor currently points to."
   [db-cursor new-data]
@@ -469,32 +438,25 @@
 ;; TODO: Write functions to manipulate the cursor's cache mode
 
 
-;; TODO: Error handling?
 (defn db-join-cursor-open [db-cursors & conf-args]
-  ;; check that all cursors refer to the same database
-  (when-not (= 1 (count (set (map :db db-cursors))))
-    :flame-out) ; TODO: Implement this
   (let [defaults {:no-sort false}
         conf     (merge defaults (apply hash-map conf-args))
         conf-obj (doto (JoinConfig.)
                    (.setNoSort (conf :no-sort)))
-        db       (((first db-cursors) :db) :db)]
+        pdb-obj  (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
     (struct-map db-join-cursor
-      :db      db
       :conf    conf
       :cursors db-cursors            ; TODO: Do we want the overhead of tracking these here?
       :join-cursor-handle (.join
-                           (db :db-handle)
+                           pdb-obj
                            (into-array (map :cursor-handle db-cursors))
                            conf-obj))))
 
 
-;; TODO: Error handling?
 (defn db-join-cursor-close [db-join-cursor]
   (.close (db-join-cursor :join-cursor-handle)))
 
 
-;; TODO: Error handling?
 (defn db-join-cursor-next [db-join-cursor & opts-args]
   (let [defaults   {:lock-mode LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
