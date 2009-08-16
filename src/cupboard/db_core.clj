@@ -171,14 +171,15 @@
 
 (defn db-get
   "Optional keyword arguments:
-     :data --- if specified, searches by both exact match of both key and :data value
-     :lock-mode"
+     :search-both --- uses Database.getSearchBoth with data specified in :data
+     :data        --- if specified, can recycle DatabaseEntry; also used for getSearchBoth"
   [db key & opts-args]
-  (let [defaults   {:lock-mode LockMode/DEFAULT}
+  (let [defaults   {:search-both false
+                    :lock-mode   LockMode/DEFAULT}
         opts       (merge defaults (apply hash-map opts-args))
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry* opts :data)
-        result     (if (contains? opts :data)
+        result     (if (opts :search-both)
                        (.getSearchBoth (db :db-handle) nil
                                        key-entry data-entry (opts :lock-mode))
                        (.get (db :db-handle) nil
@@ -232,12 +233,16 @@
 (def-with-db-macro with-db-sec db-sec-open db-sec-close)
 
 
-(defn db-sec-get [db-sec search-key & opts-args]
+(defn db-sec-get
+  "Optional keyword arguments:
+     :key  --- if specified, recycles DatabaseEntry
+     :data --- if specified, recycles DatabaseEntry"
+  [db-sec search-key & opts-args]
   (let [defaults         {:lock-mode LockMode/DEFAULT}
         opts             (merge defaults (apply hash-map opts-args))
         search-key-entry (marshal-db-entry search-key)
-        key-entry        (DatabaseEntry.)
-        data-entry       (DatabaseEntry.)
+        key-entry        (marshal-db-entry* opts :key)
+        data-entry       (marshal-db-entry* opts :data)
         result           (.get (db-sec :db-handle) nil
                                search-key-entry key-entry data-entry
                                (opts :lock-mode))]
@@ -282,34 +287,38 @@
 ;; TODO: Write tests to check "both" search mode.
 (defn db-cursor-search
   "Optional keyword arguments:
-     :pkey  --- for cursors on secondary databases only, specifies the primary key value
-     :data  --- if specified, positions the cursor by both key and :data values
-     :exact --- if true, match the key and optional :data exactly"
+     :search-both --- use Database.getSearchBoth functions
+     :pkey        --- for cursors on secondary databases only, specifies the primary key value
+     :data        --- if specified, positions the cursor by both key and :data values
+     :exact       --- if true, match the key and optional :data exactly"
   [db-cursor key & opts-args]
-  (let [defaults   {:exact     false
-                    :lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
-        exact      (opts :exact)
-        key-entry  (marshal-db-entry key)
-        pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
-        data-entry (marshal-db-entry* opts :data)
+  (let [defaults    {:search-both false
+                     :exact       false
+                     :lock-mode   LockMode/DEFAULT}
+        opts        (merge defaults (apply hash-map opts-args))
+        search-both (opts :search-both)
+        exact       (opts :exact)
+        lock-mode   (opts :lock-mode)
+        key-entry   (marshal-db-entry key)
+        pkey-entry  (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
+        data-entry  (marshal-db-entry* opts :data)
         ;; search-fn1 is for primary database cursor lookups
         search-fn1 (cond
-                     (and (contains? opts :data) :exact) #(.getSearchBoth %1 %2 %3 %4)
-                     (contains? opts :data)              #(.getSearchBothRange %1 %2 %3 %4)
-                     exact                               #(.getSearchKey %1 %2 %3 %4)
-                     :else                               #(.getSearchKeyRange %1 %2 %3 %4))
+                     (and search-both exact) #(.getSearchBoth %1 %2 %3 %4)
+                     search-both             #(.getSearchBothRange %1 %2 %3 %4)
+                     exact                   #(.getSearchKey %1 %2 %3 %4)
+                     :else                   #(.getSearchKeyRange %1 %2 %3 %4))
         ;; search-fn2 is for secondary database cursor lookups
         search-fn2 (cond
-                     (and (contains? opts :pkey) :exact) #(.getSearchBoth %1 %2 %3 %4 %5)
-                     (contains? opts :pkey)              #(.getSearchBothRange %1 %2 %3 %4 %5)
-                     exact                               #(.getSearchKey %1 %2 %3 %4 %5)
-                     :else                               #(.getSearchKeyRange %1 %2 %3 %4 %5))
+                     (and search-both exact) #(.getSearchBoth %1 %2 %3 %4 %5)
+                     search-both             #(.getSearchBothRange %1 %2 %3 %4 %5)
+                     exact                   #(.getSearchKey %1 %2 %3 %4 %5)
+                     :else                   #(.getSearchKeyRange %1 %2 %3 %4 %5))
         result     (if (db-cursor-primary? db-cursor)
                        (search-fn1 (db-cursor :cursor-handle)
-                                   key-entry data-entry (opts :lock-mode))
+                                   key-entry data-entry lock-mode)
                        (search-fn2 (db-cursor :cursor-handle)
-                                   key-entry pkey-entry data-entry (opts :lock-mode)))]
+                                   key-entry pkey-entry data-entry lock-mode))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
                          data-entry)))
