@@ -1,7 +1,7 @@
 (ns cupboard.marshal
-  (:use [cupboard.utils])
-  (:import [com.sleepycat.je DatabaseEntry OperationStatus])
-  (:import [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
+  (:use [cupboard utils])
+  (:import [com.sleepycat.je DatabaseEntry OperationStatus]
+           [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
 
 ;; TODO: Verify that strings encode in UTF-8 under all circumstances.

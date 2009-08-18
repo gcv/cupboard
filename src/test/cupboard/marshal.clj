@@ -1,6 +1,6 @@
 (ns test.cupboard.marshal
-  (:use [clojure.contrib test-is])
   (:use [cupboard marshal])
+  (:use [clojure.contrib test-is])
   (:import [com.sleepycat.je DatabaseEntry OperationStatus]))
 
 

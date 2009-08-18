@@ -1,6 +1,6 @@
 (ns test.cupboard.db-core
-  (:use [clojure.contrib test-is])
-  (:use [cupboard utils db-core]))
+  (:use [cupboard utils db-core])
+  (:use [clojure.contrib test-is]))
 
 
 

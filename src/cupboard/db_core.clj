@@ -1,11 +1,11 @@
 (ns cupboard.db-core
-  (:use [clojure.contrib java-utils])
   (:use [cupboard marshal])
-  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode])
-  (:import [com.sleepycat.je EnvironmentConfig Environment])
-  (:import [com.sleepycat.je Database DatabaseConfig])
-  (:import [com.sleepycat.je Cursor SecondaryCursor JoinCursor CursorConfig JoinConfig])
-  (:import [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
+  (:use [clojure.contrib java-utils])
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode]
+           [com.sleepycat.je EnvironmentConfig Environment]
+           [com.sleepycat.je Database DatabaseConfig]
+           [com.sleepycat.je Cursor SecondaryCursor JoinCursor CursorConfig JoinConfig]
+           [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
 
 
 

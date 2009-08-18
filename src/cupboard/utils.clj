@@ -1,8 +1,8 @@
 (ns cupboard.utils
   (:use [clojure.contrib java-utils])
-  (:import [java.io File IOException FileNotFoundException])
-  (:import [java.text SimpleDateFormat ParseException])
-  (:import [java.util Date TimeZone]))
+  (:import [java.io File IOException FileNotFoundException]
+           [java.text SimpleDateFormat ParseException]
+           [java.util Date TimeZone]))
 
 
 
