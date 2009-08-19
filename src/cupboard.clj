@@ -9,8 +9,8 @@
 ;;; useful "constants"
 ;;; ----------------------------------------------------------------------
 
-(def *shelves-db-name*    "__shelves__")
-(def *default-shelf-name* "__default__")
+(def *shelves-db-name*    "_shelves")
+(def *default-shelf-name* "_default")
 
 
 
@@ -25,11 +25,9 @@
 
 
 (defstruct shelf
-  :db                                   ; XXX: Maybe this is the wrong place to track the db!
+  :db
   :name
-  :count
-  :transactional
-  :index-names)
+  :index-dbs)
 
 
 (defstruct persistence-metadata
@@ -42,37 +40,46 @@
 ;;; cupboard maintenance
 ;;; ----------------------------------------------------------------------
 
+;; TODO: Check that index closing actually works.
+(defn- close-shelves [shelves]
+  (doseq [shelf (vals shelves)]
+    (doseq [index-db (vals @(shelf :index-dbs))]
+      (db-close (index-db :db)))
+    (db-close (shelf :db))))
+
+
 (defn- init-cupboard [cb-env cb-env-new]
-  (let [shelves-db (db-open cb-env *shelves-db-name*
-                            :allow-create cb-env-new :transactional true)
+  (let [shelves-db (db-open cb-env *shelves-db-name* :allow-create cb-env-new :transactional true)
         shelves    (atom {})]
     (try
      (when cb-env-new
        (with-db default-shelf-db [cb-env *default-shelf-name*
                                   :allow-create true :transactional true]
          (db-put shelves-db *default-shelf-name*
-                 (struct-map shelf
-                   :name *default-shelf-name*
-                   :count 0
-                   :transactional true
-                   :index-names []))))
+                 {:deferred-write false :sorted-duplicates false
+                  :read-only false :transactional true
+                  :index-names []})))
      ;; load metadata about all shelves
      (with-db-cursor shelf-cursor [shelves-db]
        (loop [shelf-entry (db-cursor-first shelf-cursor)]
          (when-not (= shelf-entry [])
            (let [[shelf-name shelf-value] shelf-entry
-                 ;; open the shelf database
-                 shelf-db (db-open cb-env shelf-name :transactional (shelf-value :transactional))
+                 ;; open the shelf's database
+                 shelf-db (db-open cb-env shelf-name
+                                   :deferred-write    (shelf-value :deferred-write)
+                                   :sorted-duplicates (shelf-value :sorted-duplicates)
+                                   :read-only         (shelf-value :read-only)
+                                   :transactional     (shelf-value :transactional))
                  ;; TODO: open indices
                  ]
              (swap! shelves assoc shelf-name
-                    (assoc shelf-value :db shelf-db :count (atom shelf-value))))
+                    (struct shelf shelf-db shelf-name (atom {}))))
            (recur (db-cursor-next shelf-cursor)))))
      ;; return the cupboard
      (struct-map cupboard
-       :cb-env cb-env
+       :cb-env     cb-env
        :shelves-db shelves-db
-       :shelves shelves)
+       :shelves    shelves)
      ;; catch block must close all open databases
      (catch Exception e
        ;; TODO: LOGGING?
@@ -80,7 +87,7 @@
         (throw e)
         (finally
          (db-close shelves-db)
-         (map db-close (vals @shelves))))))))
+         (close-shelves @shelves)))))))
 
 
 (defn open-cupboard [cb-dir-arg]
@@ -99,8 +106,6 @@
 
 
 (defn close-cupboard [cb]
-  ;; close all shelves
-  
-  ;; close shelves-db
-  ;; close cb-env
-)
+  (close-shelves @(cb :shelves))
+  (db-close (cb :shelves-db))
+  (db-env-close (cb :cb-env)))
