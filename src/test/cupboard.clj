@@ -3,12 +3,23 @@
   (:use [cupboard :as cb]))
 
 
+;; XXX: What should happen when a map gets stored on a shelf with an
+;; incompatible definition of a unique index? For example, s1 notes
+;; that :first-name has a :unique index, and s2 does not..? The
+;; earlier definition on the shelf takes precedence, so structures
+;; defined earlier dictate more how the database functions.
+
+;; If there is no primary key, the primary key is a hash of the slot
+;; values.
+
+
 (cb/defpersist president
-  [[:login      :primary-key]
-   [:first-name :index :any]
-   [:last-name  :index :any]
-   [:age        :index :any]
-   [:bank-acct  :index :unique]]
+  ((:login      :index :unique)
+   (:first-name :index :any)
+   (:last-name  :index :any)
+   (:age        :index :any)
+   (:bank-acct  :index :unique))
+  :primary-key :login
   :shelf "presidents")
 
 
@@ -43,6 +54,8 @@
     (let [gw (cb/load :login "gw")]
       (println gw))
     ;; Show off querying:
+    ;; XXX: This is not quite right. Which shelf should the given indices refer to?
+    ;; How would inter-shelf joins work?
     (let [first-name-j   (cb/query (cb/>= :first-name "J"))
           under-60       (cb/query (cb/< :age 60))
           under-60-and-j (cb/query (cb/< :age 60) (cb/>= :first-name "J"))

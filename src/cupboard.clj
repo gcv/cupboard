@@ -109,3 +109,46 @@
   (close-shelves @(cb :shelves))
   (db-close (cb :shelves-db))
   (db-env-close (cb :cb-env)))
+
+
+
+;;; ----------------------------------------------------------------------
+;;; persistent structs
+;;; ----------------------------------------------------------------------
+
+(defn- filter-index-slots [slot-map index-type]
+  (keys (filter (fn [[slot-name slot-attr]]
+                  (and (contains? slot-attr :index)
+                       (= (slot-attr :index) index-type)))
+                slot-map)))
+
+
+(defmulti make-instance first)
+
+
+(defmacro defpersist [name slots & opts-args]
+  (let [slot-names  (map first slots)
+        slot-attrs  (map (comp #(apply hash-map %) rest) slots)
+        slot-map    (zipmap slot-names slot-attrs)
+        idx-uniques (filter-index-slots slot-map :unique)
+        idx-anys    (filter-index-slots slot-map :any)
+        defaults    {:shelf *default-shelf-name*}
+        opts        (merge defaults (apply hash-map opts-args))]
+    {:slot-names slot-names
+     :uniques    idx-uniques
+     :anys       idx-anys
+     :options    opts}
+  ;; expands into:
+  ;;  - defstruct
+  ;;  - defmethod make-instance specialized on name
+  ))
+
+
+(defpersist president
+  ((:login      :index :unique)
+   (:first-name :index :any)
+   (:last-name  :index :any)
+   (:age        :index :any)
+   (:bank-acct  :index :unique))
+  :primary-key :login
+  :shelf "presidents")
