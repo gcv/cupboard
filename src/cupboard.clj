@@ -31,8 +31,10 @@
 
 
 (defstruct persistence-metadata
+  :shelf
   :primary-key
-  :indexed-slots)
+  :index-uniques
+  :index-anys)
 
 
 
@@ -116,39 +118,34 @@
 ;;; persistent structs
 ;;; ----------------------------------------------------------------------
 
-(defn- filter-index-slots [slot-map index-type]
-  (keys (filter (fn [[slot-name slot-attr]]
-                  (and (contains? slot-attr :index)
-                       (= (slot-attr :index) index-type)))
-                slot-map)))
+(defn- filter-slots [slot-names slot-attrs target-key target-value]
+  ;; Do not use maps because the result should must have the same
+  ;; order as the input slot-names and slot-attrs parallel arrays.
+  (let [csa (count slot-attrs)]
+    (loop [res [] i 0]
+      (if (= i csa)
+          res
+          (do (let [sa (nth slot-attrs i)]
+                (if (and (contains? sa target-key) (= (sa target-key) target-value))
+                    (recur (conj res (nth slot-names i)) (inc i))
+                    (recur res (inc i)))))))))
 
 
-(defmulti make-instance first)
+(defmulti make-instance (fn [& args] (first args)))
 
 
 (defmacro defpersist [name slots & opts-args]
   (let [slot-names  (map first slots)
         slot-attrs  (map (comp #(apply hash-map %) rest) slots)
         slot-map    (zipmap slot-names slot-attrs)
-        idx-uniques (filter-index-slots slot-map :unique)
-        idx-anys    (filter-index-slots slot-map :any)
+        idx-uniques (filter-slots slot-names slot-attrs :index :unique)
+        idx-anys    (filter-slots slot-names slot-attrs :index :any)
         defaults    {:shelf *default-shelf-name*}
-        opts        (merge defaults (apply hash-map opts-args))]
-    {:slot-names slot-names
-     :uniques    idx-uniques
-     :anys       idx-anys
-     :options    opts}
-  ;; expands into:
-  ;;  - defstruct
-  ;;  - defmethod make-instance specialized on name
-  ))
-
-
-(defpersist president
-  ((:login      :index :unique)
-   (:first-name :index :any)
-   (:last-name  :index :any)
-   (:age        :index :any)
-   (:bank-acct  :index :unique))
-  :primary-key :login
-  :shelf "presidents")
+        opts        (merge defaults (apply hash-map opts-args))
+        pkey        (if (contains? opts :primary-key)
+                        (opts :primary-key)
+                        (first idx-uniques))
+        pmeta       (struct persistence-metadata (opts :shelf) pkey idx-uniques idx-anys)]
+    `(do (defstruct ~name ~@slot-names)
+         (defmethod make-instance ~name [& instance-args#]
+           (with-meta (apply struct instance-args#) ~pmeta)))))
