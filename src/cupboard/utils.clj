@@ -6,6 +6,17 @@
 
 
 
+;;; ----------------------------------------------------------------------
+;;; plugging holes in Clojure
+;;; ----------------------------------------------------------------------
+
+(defn args-map [args]
+  (if (map? args)
+      args
+      (apply hash-map args)))
+
+
+
 ;; ----------------------------------------------------------------------
 ;; date handling routines
 ;; ----------------------------------------------------------------------
@@ -20,7 +31,7 @@
 
 (defn date->iso8601 [#^Date date & opts-args]
   (let [defaults {:millis false}
-        opts     (merge defaults (apply hash-map opts-args))]
+        opts     (merge defaults (args-map opts-args))]
     (if (opts :millis)
         (.format *iso8601-date-format-millis* date)
         (.format *iso8601-date-format* date))))

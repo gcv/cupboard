@@ -1,5 +1,5 @@
 (ns cupboard.db-core
-  (:use [cupboard marshal])
+  (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode]
            [com.sleepycat.je EnvironmentConfig Environment]
@@ -77,7 +77,7 @@
                   :read-only     false
                   :transactional false}
         dir      (file dir)
-        conf     (merge defaults (apply hash-map conf-args))
+        conf     (merge defaults (args-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
                    (.setAllowCreate   (conf :allow-create))
                    (.setReadOnly      (conf :read-only))
@@ -121,7 +121,7 @@
                   :exclusive-create  false
                   :read-only         false
                   :transactional     false}
-        conf     (merge defaults (apply hash-map conf-args))
+        conf     (merge defaults (args-map conf-args))
         conf-obj (doto (DatabaseConfig.)
                    (.setAllowCreate      (conf :allow-create))
                    (.setDeferredWrite    (conf :deferred-write))
@@ -159,7 +159,7 @@
      :no-dup-data  --- if true, then calls .putNoDupData
      :no-overwrite --- if true, then calls .putNoOverwrite"
   [db key data & opts-args]
-  (let [opts       (apply hash-map opts-args)
+  (let [opts       (args-map opts-args)
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
     (cond (opts :no-dup-data)  (.putNoDupData
@@ -176,7 +176,7 @@
   [db key & opts-args]
   (let [defaults   {:search-both false
                     :lock-mode   LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
+        opts       (merge defaults (args-map opts-args))
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry* opts :data)
         result     (if (opts :search-both)
@@ -202,7 +202,7 @@
                      :allow-create      false
                      :sorted-duplicates false
                      :allow-populate    true}
-        conf        (merge defaults (apply hash-map conf-args))
+        conf        (merge defaults (args-map conf-args))
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]
                         (let [data     (unmarshal-db-entry data-entry)
@@ -239,7 +239,7 @@
      :data --- if specified, recycles DatabaseEntry"
   [db-sec search-key & opts-args]
   (let [defaults         {:lock-mode LockMode/DEFAULT}
-        opts             (merge defaults (apply hash-map opts-args))
+        opts             (merge defaults (args-map opts-args))
         search-key-entry (marshal-db-entry search-key)
         key-entry        (marshal-db-entry* opts :key)
         data-entry       (marshal-db-entry* opts :data)
@@ -266,7 +266,7 @@
 (defn db-cursor-open [db & conf-args]
   (let [defaults {:read-committed   true
                   :read-uncommitted false}
-        conf     (merge defaults (apply hash-map conf-args))
+        conf     (merge defaults (args-map conf-args))
         conf-obj (doto (CursorConfig.)
                    (.setReadCommitted   (conf :read-committed))
                    (.setReadUncommitted (conf :read-uncommitted)))]
@@ -295,7 +295,7 @@
   (let [defaults    {:search-both false
                      :exact       false
                      :lock-mode   LockMode/DEFAULT}
-        opts        (merge defaults (apply hash-map opts-args))
+        opts        (merge defaults (args-map opts-args))
         search-both (opts :search-both)
         exact       (opts :exact)
         lock-mode   (opts :lock-mode)
@@ -332,7 +332,7 @@
         :data --- if specified, reuses the given DatabaseEntry"
      [db-cursor# & opts-args#]
      (let [defaults#   {:lock-mode LockMode/DEFAULT}
-           opts#       (merge defaults# (apply hash-map opts-args#))
+           opts#       (merge defaults# (args-map opts-args#))
            key-entry#  (marshal-db-entry* opts# :key)
            pkey-entry# (when (db-cursor-sec? db-cursor#) (marshal-db-entry* opts# :pkey))
            data-entry# (marshal-db-entry* opts# :data)
@@ -358,7 +358,7 @@
   (let [defaults   {:direction :forward
                     :skip-dups false
                     :lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
+        opts       (merge defaults (args-map opts-args))
         direction  (opts :direction)
         skip-dups  (opts :skip-dups)
         key-entry  (marshal-db-entry* opts :key)
@@ -387,7 +387,7 @@
 
 
 (defn db-cursor-put [db-cursor key data & opts-args]
-  (let [opts       (apply hash-map opts-args)
+  (let [opts       (args-map opts-args)
         key-entry  (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
     (cond (opts :no-dup-data)  (.putNoDupData
@@ -414,7 +414,7 @@
 
 (defn db-join-cursor-open [db-cursors & conf-args]
   (let [defaults {:no-sort false}
-        conf     (merge defaults (apply hash-map conf-args))
+        conf     (merge defaults (args-map conf-args))
         conf-obj (doto (JoinConfig.)
                    (.setNoSort (conf :no-sort)))
         pdb-obj  (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
@@ -436,7 +436,7 @@
 
 (defn db-join-cursor-next [db-join-cursor & opts-args]
   (let [defaults   {:lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (apply hash-map opts-args))
+        opts       (merge defaults (args-map opts-args))
         key-entry  (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
         result     (.getNext

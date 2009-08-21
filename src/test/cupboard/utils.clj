@@ -3,6 +3,16 @@
   (:use [clojure.contrib test-is]))
 
 
+(deftest args-map-test
+  (let [a1v [:one 1 :two 2]             ; test as a vector
+        a1m {:one 1 :two 2}             ; test as a map
+        a2  {:three 3 :four 4}
+        expected {:one 1 :two 2 :three 3 :four 4}]
+    (is (= (merge (args-map a1v) a2) expected))
+    (is (= (merge (args-map a1m) a2) expected))))
+
+
+
 (deftest date-routines
   (let [d1  (java.util.Date.)
         ds1 (date->iso8601 d1 :millis true)

@@ -136,12 +136,12 @@
 
 (defmacro defpersist [name slots & opts-args]
   (let [slot-names  (map first slots)
-        slot-attrs  (map (comp #(apply hash-map %) rest) slots)
+        slot-attrs  (map (comp #(args-map %) rest) slots)
         slot-map    (zipmap slot-names slot-attrs)
         idx-uniques (filter-slots slot-names slot-attrs :index :unique)
         idx-anys    (filter-slots slot-names slot-attrs :index :any)
         defaults    {:shelf *default-shelf-name*}
-        opts        (merge defaults (apply hash-map opts-args))
+        opts        (merge defaults (args-map opts-args))
         pkey        (if (contains? opts :primary-key)
                         (opts :primary-key)
                         (first idx-uniques))
