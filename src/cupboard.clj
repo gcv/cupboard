@@ -105,7 +105,7 @@
   a table of shelves, it simply closes them."
   [arg]
   (if (is-cupboard? arg)
-      (doseq [shelf-name (vals @(arg :shelves))]
+      (doseq [shelf-name (keys @(arg :shelves))]
         (close-shelf arg shelf-name))
       ;; this is for use from the init-cupboard error recovery block
       (doseq [shelf (vals arg)]
@@ -170,7 +170,7 @@
 
 
 (defn close-cupboard [cb]
-  (close-shelves @(cb :shelves))
+  (close-shelves cb)
   (db-close (cb :shelves-db))
   (db-env-close (cb :cb-env)))
 
