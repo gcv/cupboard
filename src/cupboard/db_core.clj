@@ -151,6 +151,7 @@
 ;; TODO: (defn db-preload [db & preload-conf-args] ...)
 ;; TODO: (defn db-remove [db-env name] ...)
 ;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
+;; TODO: (defn db-verify ...)
 ;; args: {:txn handle :count false}
 
 
@@ -201,7 +202,8 @@
   (let [defaults    {:key-creator-fn    first
                      :allow-create      false
                      :sorted-duplicates false
-                     :allow-populate    true}
+                     :allow-populate    true
+                     :transactional     false}
         conf        (merge defaults (args-map conf-args))
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]
@@ -216,7 +218,8 @@
                       (.setKeyCreator       key-creator)
                       (.setAllowCreate      (conf :allow-create))
                       (.setSortedDuplicates (conf :sorted-duplicates))
-                      (.setAllowPopulate    (conf :allow-populate)))]
+                      (.setAllowPopulate    (conf :allow-populate))
+                      (.setTransactional    (conf :transactional)))]
     (struct-map db
       :name name
       :conf conf
