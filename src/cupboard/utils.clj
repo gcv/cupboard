@@ -16,6 +16,20 @@
       (apply hash-map args)))
 
 
+(defmacro defstruct*
+  "Wrapper for defstruct which also creates a simple duck type
+  checking function."
+  [name & slots]
+  `(do
+     (defstruct ~name ~@slots)
+     (defn ~(symbol (str "is-" name "?")) [x#]
+       (if (map? x#)
+           (let [sample# (struct ~name)]
+             (empty? (clojure.set/difference
+                      (set (keys sample#)) (set (keys x#)))))
+           false))))
+
+
 
 ;; ----------------------------------------------------------------------
 ;; date handling routines

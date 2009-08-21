@@ -18,19 +18,19 @@
 ;;; useful structs
 ;;; ----------------------------------------------------------------------
 
-(defstruct cupboard
+(defstruct* cupboard
   :cb-env
   :shelves-db
   :shelves)
 
 
-(defstruct shelf
+(defstruct* shelf
   :db
   :name
   :index-dbs)
 
 
-(defstruct persistence-metadata
+(defstruct* persistence-metadata
   :shelf
   :primary-key
   :index-uniques
