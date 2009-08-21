@@ -57,12 +57,11 @@
       (close-shelf cb shelf-name))
     (if (contains? @(cb :shelves) shelf-name)
         ;; shelf is ready and open, just return it
-        ((cb :shelves) shelf-name)
+        (@(cb :shelves) shelf-name)
         ;; no shelf found in cupboard, need to either open or create it
         (let [shelf-desc (db-get (cb :shelves-db) shelf-name)]
           (if (= shelf-desc [])
               ;; shelf does not exist --- create a new one
-              ;; TODO: Refactor into a separate function, and use in init-cupboard
               (let [new-shelf-opts {:deferred-write    (opts :deferred-write)
                                     :sorted-duplicates (opts :sorted-duplicates)
                                     :read-only         (opts :read-only)
@@ -74,7 +73,6 @@
                 (swap! (cb :shelves) assoc shelf-name new-shelf)
                 new-shelf)
               ;; shelf exists --- open it
-              ;; TODO: Refactor into a separate function, and use in init-cupboard
               (let [[_ shelf-opts] shelf-desc
                     ;; Careful on merge here! Only use explicitly specified arguments!
                     open-opts      (merge shelf-opts opts-args)
@@ -88,8 +86,9 @@
 ;; TODO: Check that index closing actually works.
 (defn- close-shelf
   "The two-parameter form of close-shelf closes shelves and removes
-  them from the cupboard (cb argument). The one-parameter form just
-  closes the given shelf, without doing any extra cleanup."
+  them from the cupboard object (cb argument). It does not remove the
+  shelf from the cupboard on disk. The one-parameter form just closes
+  the given shelf, without doing any extra cleanup."
   ([shelf]
      (doseq [index-db (vals @(shelf :index-dbs))]
        (db-close (index-db :db)))
@@ -173,6 +172,10 @@
   (close-shelves cb)
   (db-close (cb :shelves-db))
   (db-env-close (cb :cb-env)))
+
+
+;;; TODO: (defn list-shelves ...)
+;;; TODO: (defn remove-shelf ...)
 
 
 
