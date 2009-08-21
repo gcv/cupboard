@@ -11,9 +11,15 @@
 ;;; ----------------------------------------------------------------------
 
 (defn args-map [args]
-  (if (map? args)
-      args
-      (apply hash-map args)))
+  (cond
+    ;; when called just on a map of arguments
+    (map? args) args
+    ;; when called on a map passed through a &rest parameter
+    (and (sequential? args)
+         (= (count args) 1)
+         (map? (first args))) (first args)
+    ;; when called on a vector or list
+    :else (apply hash-map args)))
 
 
 (defmacro defstruct*

@@ -12,7 +12,8 @@
         a2  {:three 3 :four 4}
         expected {:one 1 :two 2 :three 3 :four 4}]
     (is (= (merge (args-map a1v) a2) expected))
-    (is (= (merge (args-map a1m) a2) expected))))
+    (is (= (merge (args-map a1m) a2) expected))
+    (is (= (merge (args-map [a1m]) a2) expected))))
 
 
 (deftest duck-typed-predicates
