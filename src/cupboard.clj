@@ -42,6 +42,34 @@
 ;;; cupboard maintenance
 ;;; ----------------------------------------------------------------------
 
+;; TODO: Check that index closing actually works.
+(defn- close-shelf
+  "The two-parameter form of close-shelf closes shelves and removes
+  them from the cupboard object (cb argument). It does not remove the
+  shelf from the cupboard on disk. The one-parameter form just closes
+  the given shelf, without doing any extra cleanup."
+  ([shelf]
+     (doseq [index-db (vals @(shelf :index-dbs))]
+       (db-close (index-db :db)))
+     (db-close (shelf :db)))
+  ([cb shelf-name]
+     (close-shelf (@(cb :shelves) shelf-name))
+     (swap! (cb :shelves) dissoc shelf-name)))
+
+
+(defn- close-shelves
+  "If arg is a cupboard instance, this closes all cupboard shelves and
+  removes them from the :shelves table in the cupboard. If arg is just
+  a table of shelves, it simply closes them."
+  [arg]
+  (if (is-cupboard? arg)
+      (doseq [shelf-name (keys @(arg :shelves))]
+        (close-shelf arg shelf-name))
+      ;; this is for use from the init-cupboard error recovery block
+      (doseq [shelf (vals arg)]
+        (close-shelf shelf))))
+
+
 (defn- get-shelf
   "Returns the shelf identified by shelf-name from the cupboard
   identified by cb. If the shelf is not open, open and return it. If
@@ -81,34 +109,6 @@
                     shelf          (struct shelf shelf-db shelf-name (atom {}))]
                 (swap! (cb :shelves) assoc shelf-name shelf)
                 shelf))))))
-
-
-;; TODO: Check that index closing actually works.
-(defn- close-shelf
-  "The two-parameter form of close-shelf closes shelves and removes
-  them from the cupboard object (cb argument). It does not remove the
-  shelf from the cupboard on disk. The one-parameter form just closes
-  the given shelf, without doing any extra cleanup."
-  ([shelf]
-     (doseq [index-db (vals @(shelf :index-dbs))]
-       (db-close (index-db :db)))
-     (db-close (shelf :db)))
-  ([cb shelf-name]
-     (close-shelf (@(cb :shelves) shelf-name))
-     (swap! (cb :shelves) dissoc shelf-name)))
-
-
-(defn- close-shelves
-  "If arg is a cupboard instance, this closes all cupboard shelves and
-  removes them from the :shelves table in the cupboard. If arg is just
-  a table of shelves, it simply closes them."
-  [arg]
-  (if (is-cupboard? arg)
-      (doseq [shelf-name (keys @(arg :shelves))]
-        (close-shelf arg shelf-name))
-      ;; this is for use from the init-cupboard error recovery block
-      (doseq [shelf (vals arg)]
-        (close-shelf shelf))))
 
 
 (defn- init-cupboard [cb-env cb-env-new]
