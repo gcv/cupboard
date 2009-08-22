@@ -76,6 +76,11 @@
     (is (= ((meta p2) :index-anys) []))))
 
 
+;; NEXT: cb/make-instance needs to save things!!!
+;; This means that :cb handling must be resolved next. Dynamic scope,
+;; cb/with-open-cupboard and so on.
+
+
 ;; (def *cupboard* (cb/open-cupboard "/mnt/cupboard-raid-10"))
 
 

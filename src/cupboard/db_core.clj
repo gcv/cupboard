@@ -13,24 +13,24 @@
 ;;; useful structs
 ;;; ----------------------------------------------------------------------
 
-(defstruct db-env
+(defstruct* db-env
   :dir
   :conf
   :env-handle)
 
 
-(defstruct db
+(defstruct* db
   :name
   :conf
   :db-handle)
 
 
-(defstruct db-cursor
+(defstruct* db-cursor
   :conf
   :cursor-handle)
 
 
-(defstruct db-join-cursor
+(defstruct* db-join-cursor
   :conf
   :cursors
   :join-cursor-handle)
