@@ -22,6 +22,31 @@
     :else (apply hash-map args)))
 
 
+(defn args-&rest-&keys
+  "Allows Clojure to parse Common Lisp style &rest &keys arguments, so
+  function f could be invoked either as:
+    (f req1 req2 req3 :opt1 opt1-val :opt2 opt2-val)
+  or as
+    (f :opt1 opt1-val :opt2 opt2-val req1 req2 req3)"
+  [args]
+  (let [rests         (atom [])
+        keys          (atom {})
+        args-size     (count args)
+        args-size-dec (dec args-size)]
+    (cond (= args-size 0) [[] {}]
+          (= args-size 1) [args {}]
+          :else (loop [i 0]
+                  (if (>= i args-size)
+                      [@rests @keys]
+                      (let [arg (nth args i)]
+                        (if (and (keyword? arg) (< i args-size-dec))
+                            ;; keyword argument with a value counterpart
+                            (do (swap! keys assoc arg (nth args (inc i)))
+                                (recur (+ i 2)))
+                            (do (swap! rests conj arg)
+                                (recur (inc i))))))))))
+
+
 (defmacro defstruct*
   "Wrapper for defstruct which also creates a simple duck type
   checking function."

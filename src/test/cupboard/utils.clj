@@ -16,6 +16,21 @@
     (is (= (merge (args-map [a1m]) a2) expected))))
 
 
+(deftest args-&rest-&keys-test
+  (let [c1 [1 2 3 :a 4 :b 5]            ; [1 2 3], {:a 4 :b 5}
+        c2 [:a 4 :b 5 1 2 3]            ; [1 2 3], {:a 4 :b 5}
+        c3 [:a 4 :b 5]                  ; [], {:a 4 :b 5}
+        c4 [1 2 3]                      ; [1 2 3], {}
+        c5 [:a 4 1 2 3 :b 5]            ; [1 2 3], {:a 4 :b 5}
+        c6 [1 2 :a 4 :b 5 3]]           ; [1 2 3], {:a 4 :b 5}
+    (is (= (args-&rest-&keys c1) [[1 2 3] {:a 4 :b 5}]))
+    (is (= (args-&rest-&keys c2) [[1 2 3] {:a 4 :b 5}]))
+    (is (= (args-&rest-&keys c3) [[] {:a 4 :b 5}]))
+    (is (= (args-&rest-&keys c4) [[1 2 3] {}]))
+    (is (= (args-&rest-&keys c5) [[1 2 3] {:a 4 :b 5}]))
+    (is (= (args-&rest-&keys c6) [[1 2 3] {:a 4 :b 5}]))))
+
+
 (deftest duck-typed-predicates
   (let [dt1     (struct duck-typed-struct 1 2 3)
         dt2     {:a 4 :b 5 :c 6}
