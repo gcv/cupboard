@@ -136,7 +136,6 @@
   [cb shelf-name & opts-args]
   (let [defaults {:force-reopen      false
                   :deferred-write    false
-                  :sorted-duplicates false
                   :read-only         false
                   :transactional     true}
         opts     (merge defaults (args-map opts-args))]
@@ -150,7 +149,7 @@
           (if (empty? shelf-desc)
               ;; shelf does not exist --- create a new one
               (let [new-shelf-opts {:deferred-write    (opts :deferred-write)
-                                    :sorted-duplicates (opts :sorted-duplicates)
+                                    :sorted-duplicates false
                                     :read-only         (opts :read-only)
                                     :transactional     (opts :transactional)}
                     new-shelf-db   (db-open (cb :cupboard-env) shelf-name
