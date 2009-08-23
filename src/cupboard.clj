@@ -345,9 +345,22 @@
         (contains? index-unique-dbs index-slot)
         (let [res (db-sec-get (index-unique-dbs index-slot) indexed-value)]
           (res->data res))
-        ;; anys
+        ;; anys --- cannot use with-db-cursor on lazy sequences
         (contains? index-any-dbs index-slot)
-        nil
+        (let [idx-cursor (db-cursor-open (index-any-dbs index-slot))]
+          (letfn [(idx-scan [cursor-fn & cursor-fn-args]
+                    (try
+                     (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]
+                       (if (or (empty? res)
+                               (not (= ((second res) index-slot) indexed-value)))
+                           (do (db-cursor-close idx-cursor)
+                               (lazy-seq))
+                           (lazy-seq (cons (res->data res) (idx-scan db-cursor-next)))))
+                     (catch DatabaseException de
+                       ;; TODO: Logging?
+                       (db-cursor-close idx-cursor)
+                       (throw de))))]
+            (idx-scan db-cursor-search indexed-value)))
         ;; primary key
         :else
         (let [res (db-get (shelf :db) [index-slot indexed-value])]
