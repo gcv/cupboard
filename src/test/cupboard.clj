@@ -109,7 +109,7 @@
 ;;       ;; object. Roll back the transaction.
 ;;       (cb/rollback))
 ;;     ;; Load an entry by an index value:
-;;     (let [gw (cb/load :login "gw")]
+;;     (let [gw (cb/retrieve :login "gw")]
 ;;       (println gw))
 ;;     ;; Show off querying:
 ;;     ;; XXX: This is not quite right. Which shelf should the given indices refer to?

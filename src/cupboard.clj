@@ -19,8 +19,8 @@
 ;;; and cupboard/*txn* as :cupboard and :txn optional arguments.
 ;;; ----------------------------------------------------------------------
 
-(def *cupboard* nil)
-(def *txn*      nil)
+(defonce *cupboard* nil)
+(defonce *txn*      nil)
 
 
 
@@ -28,8 +28,8 @@
 ;;; useful "constants"
 ;;; ----------------------------------------------------------------------
 
-(def *shelves-db-name*    "_shelves")
-(def *default-shelf-name* "_default")
+(defonce *shelves-db-name*    "_shelves")
+(defonce *default-shelf-name* "_default")
 
 
 
@@ -306,12 +306,49 @@
                         (select-keys pmeta [:cupboard :shelf-name]))
         cb       (opts :cupboard)
         txn      (opts :txn)
-        shelf    (get-shelf cb (opts :shelf-name))]
+        shelf    (get-shelf cb (opts :shelf-name))
+        pkey     (pmeta :primary-key)]
     ;; Verify that the shelf has open indices for pmeta :index-uniques
     ;; and :index-anys.
     (doseq [unique-index (pmeta :index-uniques)]
       (get-index cb shelf unique-index :sorted-duplicates false))
     (doseq [any-index (pmeta :index-anys)]
       (get-index cb shelf any-index :sorted-duplicates true))
-    ;; Write object!
-    (db-put (shelf :db) (obj (pmeta :primary-key)) obj)))
+    ;; Write object! Note the primary key form: [key-slot-name key-value]
+    (db-put (shelf :db) [pkey (obj pkey)] obj)))
+
+
+(defn retrieve [index-slot indexed-value & opts-args]
+  (let [defaults {:cupboard   *cupboard*
+                  :shelf-name *default-shelf-name*
+                  :txn        *txn*}
+        opts     (merge defaults (args-map opts-args))
+        cb       (opts :cupboard)
+        shelf    (get-shelf cb (opts :shelf-name))
+        index-unique-dbs @(shelf :index-unique-dbs)
+        index-any-dbs    @(shelf :index-any-dbs)]
+    (letfn [(res->data [res]
+              (if (empty? res)
+                  nil
+                  (let [[pkey-key
+                         pkey-value] (first res)
+                         data        (assoc (second res) pkey-key pkey-value)
+                         metadata    {:primary-key   pkey-key
+                                      :index-uniques (keys index-unique-dbs)
+                                      :index-anys    (keys index-any-dbs)}]
+                    (with-meta data metadata))))]
+      ;; If the index-slot is in :index-uniques, retrieve it and return as is.
+      ;; If the index-slot is in :index-anys, retrieve a lazy sequence.
+      ;; If neither, attempt to retrieve by primary key [index-slot indexed-value].
+      (cond
+        ;; uniques
+        (contains? index-unique-dbs index-slot)
+        (let [res (db-sec-get (index-unique-dbs index-slot) indexed-value)]
+          (res->data res))
+        ;; anys
+        (contains? index-any-dbs index-slot)
+        nil
+        ;; primary key
+        :else
+        (let [res (db-get (shelf :db) [index-slot indexed-value])]
+          (res->data res))))))
