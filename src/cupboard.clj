@@ -283,11 +283,14 @@
          (defmethod make-instance ~name [& instance-args#]
            (let [[struct-args#
                   instance-kw-args#] (args-&rest-&keys instance-args#)
-                 inst-kw-meta-args#  (dissoc instance-kw-args# :txn)
+                 inst-kw-meta-args#  (dissoc instance-kw-args# :txn :save)
+                 save-instance#      (or (not (contains? instance-kw-args# :save))
+                                         (instance-kw-args# :save))
                  inst-kw-save-args#  (select-keys instance-kw-args# [:txn])
                  inst-meta#          (merge ~pmeta ~opts inst-kw-meta-args#)
                  inst#               (with-meta (apply struct struct-args#) inst-meta#)]
-             (save inst# inst-kw-save-args#)
+             (when save-instance#
+               (save inst# inst-kw-save-args#))
              inst#)))))
 
 
