@@ -60,7 +60,7 @@
 ;;; ----------------------------------------------------------------------
 
 (defmacro def-with-db-macro [macro-name open-fn close-fn]
-  `(defmacro ~macro-name [var# [& open-args#] & body#]
+  `(defmacro ~macro-name [[var# & open-args#] & body#]
      `(let [~var# (apply ~'~open-fn [~@open-args#])]
         (try
          ~@body#

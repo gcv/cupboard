@@ -193,14 +193,14 @@
         cb         (struct cupboard cb-env shelves-db shelves)]
     (try
      (when cb-env-new
-       (with-db default-shelf-db [cb-env *default-shelf-name*
-                                  :allow-create true :transactional true]
+       (with-db [default-shelf-db cb-env *default-shelf-name*
+                 :allow-create true :transactional true]
          (db-put shelves-db *default-shelf-name*
                  {:deferred-write false :sorted-duplicates false
                   :read-only false :transactional true
                   :indices {}})))
      ;; load metadata about all shelves
-     (with-db-cursor shelf-cursor [shelves-db]
+     (with-db-cursor [shelf-cursor shelves-db]
        (loop [shelf-entry (db-cursor-first shelf-cursor)]
          (when-not (empty? shelf-entry)
            (let [[shelf-name _] shelf-entry]

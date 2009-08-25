@@ -97,7 +97,7 @@
     (db-put *db* "b" data2)
     (db-put *db* "c" data3)
     (db-put *db* "d" data4)
-    (with-db-cursor cur1 [*db*]
+    (with-db-cursor [cur1 *db*]
       (is (= (db-cursor-search cur1 "a") ["a" data1]))
       (is (= (db-cursor-next cur1) ["b" data2]))
       (is (= (db-cursor-next cur1) ["c" data3]))
@@ -121,7 +121,7 @@
   (let [data1 {:id 1 :first-name "Aardvark" :last-name "Aardvarkov"}
         data2 {:id 2 :first-name "Baran" :last-name "Baranovich"}
         data3 {:id 3 :first-name "Beleg" :last-name "Cuthalion"}]
-    (with-db-sec idx1 [*db-env* *db* "idx1" :allow-create true :key-creator-fn :last-name]
+    (with-db-sec [idx1 *db-env* *db* "idx1" :allow-create true :key-creator-fn :last-name]
       (db-put *db* 1 data1)
       (db-put *db* 2 data2)
       (db-put *db* 3 data3)
@@ -137,11 +137,11 @@
   (let [data1 {:id 1 :first-name "Aardvark" :last-name "Aardvarkov"}
         data2 {:id 2 :first-name "Baran" :last-name "Baranovich"}
         data3 {:id 3 :first-name "Beleg" :last-name "Cuthalion"}]
-    (with-db-sec idx1 [*db-env* *db* "idx1" :allow-create true :key-creator-fn :last-name]
+    (with-db-sec [idx1 *db-env* *db* "idx1" :allow-create true :key-creator-fn :last-name]
       (db-put *db* 1 data1)
       (db-put *db* 2 data2)
       (db-put *db* 3 data3)
-      (with-db-cursor cur1 [idx1]
+      (with-db-cursor [cur1 idx1]
         (is (= (db-cursor-search cur1 "Baran") [2 data2]))
         (is (= (db-cursor-next cur1) [3 data3]))))))
 
@@ -156,15 +156,15 @@
         car-7  {:marque "BMW"   :model "330i"     :year 2003 :color "blue"  :awd false}
         car-8  {:marque "Eagle" :model "Summit"   :year 1994 :color "blue"  :awd false}
         car-9  {:marque "Audi"  :model "A4"       :year 2003 :color "blue"  :awd false}]
-    (with-db-sec idx-color [*db-env* *db* "idx-color"
-                            :allow-create true :sorted-duplicates true
-                            :key-creator-fn :color]
-      (with-db-sec idx-year [*db-env* *db* "idx-year"
-                             :allow-create true :sorted-duplicates true
-                             :key-creator-fn :year]
-        (with-db-sec idx-awd [*db-env* *db* "idx-awd"
-                              :allow-create true :sorted-duplicates true
-                              :key-creator-fn :awd]
+    (with-db-sec [idx-color *db-env* *db* "idx-color"
+                  :allow-create true :sorted-duplicates true
+                  :key-creator-fn :color]
+      (with-db-sec [idx-year *db-env* *db* "idx-year"
+                    :allow-create true :sorted-duplicates true
+                    :key-creator-fn :year]
+        (with-db-sec [idx-awd *db-env* *db* "idx-awd"
+                      :allow-create true :sorted-duplicates true
+                      :key-creator-fn :awd]
           (db-put *db* 1 car-1)
           (db-put *db* 2 car-2)
           (db-put *db* 3 car-3)
@@ -174,11 +174,11 @@
           (db-put *db* 7 car-7)
           (db-put *db* 8 car-8)
           (db-put *db* 9 car-9)
-          (with-db-cursor c1 [idx-year]
-            (with-db-cursor c2 [idx-color]
+          (with-db-cursor [c1 idx-year]
+            (with-db-cursor [c2 idx-color]
               (is (= (db-cursor-search c1 2003) [7 car-7]))
               (is (= (db-cursor-search c2 "blue") [1 car-1]))
-              (with-db-join-cursor j [[c1 c2]]
+              (with-db-join-cursor [j [c1 c2]]
                 (is (= (db-join-cursor-next j) [7 car-7]))
                 (is (= (db-join-cursor-next j) [9 car-9]))
                 (is (= (db-join-cursor-next j) []))))))))))
