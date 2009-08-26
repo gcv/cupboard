@@ -1,5 +1,6 @@
 (ns test.cupboard
   (:use [clojure.contrib test-is])
+  (:use [cupboard utils])
   (:use [cupboard :as cb]))
 
 
@@ -74,10 +75,47 @@
     (is (= ((meta p2) :index-anys) []))))
 
 
-;; (def *cupboard* (cb/open-cupboard "/mnt/cupboard-raid-10"))
+(deftest basics
+  (let [cupboard-location (make-temp-dir)
+        p1 (atom nil)
+        p2 (atom nil)
+        p3 (atom nil)
+        p4 (atom nil)]
+    ;; default cb/*cupboard*
+    (try
+     (cb/with-open-cupboard [cupboard-location]
+       (reset! p1 (cb/make-instance president "gw" "George" "Washington" 57))
+       (reset! p2 (cb/make-instance president "ja" "John" "Adams" 62))
+       (reset! p3 (cb/make-instance president "tj" "Thomas" "Jefferson" 58))
+       (reset! p4 (cb/make-instance president "jm" "James" "Madison" 58)))
+     (cb/with-open-cupboard [cupboard-location]
+       (is (= @p1 (cb/retrieve :login "gw")))
+       (is (= @p2 (cb/retrieve :login "ja" :cupboard cb/*cupboard*)))
+       (is (= @p3 (cb/retrieve :login "tj")))
+       (is (= @p4 (cb/retrieve :login "jm"))))
+     (finally
+      (rmdir-recursive cupboard-location)))
+    ;; explicitly bound cupboard
+    (try
+     (cb/with-open-cupboard [cb cupboard-location]
+       (reset! p1 (cb/make-instance president "gw" "George" "Washington" 57 :cupboard cb))
+       (reset! p2 (cb/make-instance president "ja" "John" "Adams" 62 :cupboard cb))
+       (reset! p3 (cb/make-instance president "tj" "Thomas" "Jefferson" 58 :cupboard cb))
+       (reset! p4 (cb/make-instance president "jm" "James" "Madison" 58 :cupboard cb)))
+     (cb/with-open-cupboard [cb cupboard-location]
+       (is (= @p1 (cb/retrieve :login "gw" :cupboard cb)))
+       (is (= @p2 (cb/retrieve :login "ja" :cupboard cb)))
+       (is (= @p3 (cb/retrieve :login "tj" :cupboard cb)))
+       (is (= @p4 (cb/retrieve :login "jm" :cupboard cb)))
+       (is (thrown? NullPointerException (cb/retrieve :login "jm"))))
+     (finally
+      (rmdir-recursive cupboard-location)))))
 
 
-;; (deftest basics
+;;; TODO: Write a test for shelf functionality.
+
+
+;; (deftest demo
 ;;   (cb/with-open-cupboard [*cb* "/mnt/cupboard-raid-10"]
 ;;     (cb/with-transaction [*txn* :cb *cb*] ; optional keyword argument; can all this be optional?
 ;;       (let [p1 (cb/make-instance president "gw" "George" "Washington" 57)

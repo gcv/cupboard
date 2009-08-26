@@ -220,8 +220,12 @@
 
 (defn open-cupboard [cb-dir-arg]
   (let [cb-dir     (file cb-dir-arg)
-        cb-env-new (not (.exists cb-dir))]
-    (when cb-env-new (.mkdir cb-dir))
+        cb-env-new (do (when (and (.exists cb-dir) (.isFile cb-dir))
+                         (throw (RuntimeException.
+                                 (str cb-dir " is a file, not a database directory"))))
+                       (when-not (or (.exists cb-dir) (.mkdir cb-dir))
+                         (throw (RuntimeException. (str "failed to create " cb-dir))))
+                       (empty? (seq (.list cb-dir))))]
     (let [cb-env (db-env-open cb-dir :allow-create cb-env-new :transactional true)]
       (try
        (init-cupboard cb-env cb-env-new)
@@ -238,6 +242,19 @@
   (close-shelves cb)
   (db-close (cb :shelves-db))
   (db-env-close (cb :cupboard-env)))
+
+
+(defmacro with-open-cupboard [[& args] & body]
+  (let [[cb-var cb-dir] (if (= (count args) 2)
+                            args
+                            ['*cupboard* (first args)])]
+    `(~(if (= cb-var '*cupboard*)
+           'binding
+           'let)
+      [~cb-var (open-cupboard ~cb-dir)]
+        (try
+         ~@body
+         (finally (close-cupboard ~cb-var))))))
 
 
 ;;; TODO: (defn list-shelves ...)
