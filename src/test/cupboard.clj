@@ -5,21 +5,21 @@
 
 
 (cb/defpersist president
-  ((:login      :index :unique)
+  ((:login :index :unique)
    (:first-name :index :any)
-   (:last-name  :index :any)
-   (:age        :index :any)
-   (:bank-acct  :index :unique))
+   (:last-name :index :any)
+   (:age :index :any)
+   (:bank-acct :index :unique))
   :primary-key :login
   :shelf "presidents")
 
 
 (cb/defpersist president-defaults
-  ((:login      :index :unique)
+  ((:login :index :unique)
    (:first-name :index :any)
-   (:last-name  :index :any)
-   (:age        :index :any)
-   (:bank-acct  :index :unique)
+   (:last-name :index :any)
+   (:age :index :any)
+   (:bank-acct :index :unique)
    (:other)))
 
 
