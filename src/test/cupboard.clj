@@ -71,8 +71,8 @@
     (is (= (p3 :age) 58))
     (is (nil? (p4 :bank-acct)))
     (is (nil? ((meta p1) :primary-key)))
-    (is (= ((meta p2) :index-uniques) []))
-    (is (= ((meta p2) :index-anys) []))))
+    (is (empty? ((meta p2) :index-uniques)))
+    (is (empty? ((meta p2) :index-anys)))))
 
 
 (deftest basics

@@ -42,9 +42,9 @@
   (is (= (db-get *db* "one") ["one" 1]))
   (dotimes [i 100] (db-put *db* (str i) i))
   (is (= (db-get *db* "50") ["50" 50]))
-  (is (= (db-get *db* "not there") []))
+  (is (empty? (db-get *db* "not there")))
   (db-delete *db* "one")
-  (is (= (db-get *db* "one") [])))
+  (is (empty? (db-get *db* "one"))))
 
 
 (deftest types
@@ -107,7 +107,7 @@
       (is (= (db-cursor-next cur1 :direction :forward) ["e" data5]))
       (db-cursor-delete cur1)
       (is (= (db-cursor-next cur1 :direction :back) ["d" data4]))
-      (is (= (db-cursor-next cur1 :direction :forward) []))
+      (is (empty? (db-cursor-next cur1 :direction :forward)))
       (db-cursor-put cur1 "e" data5)
       (db-cursor-replace cur1 data1)
       (db-cursor-next cur1 :direction :back)
@@ -127,10 +127,10 @@
       (db-put *db* 3 data3)
       (is (= (db-get *db* 1) [1 data1]))
       (is (= (db-sec-get idx1 "Cuthalion") [3 data3]))
-      (is (= (db-sec-get idx1 "Balkonsky") []))
+      (is (empty? (db-sec-get idx1 "Balkonsky")))
       (db-sec-delete idx1 "Baranovich")
-      (is (= (db-get *db* 2) []))
-      (is (= (db-sec-get idx1 "Baranovich") [])))))
+      (is (empty? (db-get *db* 2)))
+      (is (empty? (db-sec-get idx1 "Baranovich"))))))
 
 
 (deftest index-cursors
@@ -181,7 +181,7 @@
               (with-db-join-cursor [j [c1 c2]]
                 (is (= (db-join-cursor-next j) [7 car-7]))
                 (is (= (db-join-cursor-next j) [9 car-9]))
-                (is (= (db-join-cursor-next j) []))))))))))
+                (is (empty? (db-join-cursor-next j)))))))))))
 
 
 (deftest transactions
@@ -189,6 +189,7 @@
     (with-db-env [e path :allow-create true :transactional true]
       (with-db [db e "db" :allow-create true]
         (with-db-sec [idx1 e db "idx1" :key-creator-fn :login :allow-create true]
+          ;; basic transactionality tests
           (db-put db "one" 1)
           (with-db-txn [txn1 e]
             (db-put db "two" 2 :txn txn1)
@@ -200,11 +201,34 @@
             (db-put db "four" 4 :txn txn2)
             (db-put db "five" 5 :txn txn2)
             (db-txn-abort txn2))
-          (is (= (db-get db "four") []))
-          (is (= (db-get db "five") []))
+          (is (empty? (db-get db "four")))
+          (is (empty? (db-get db "five")))
           (with-db-txn [txn3 e]
             (db-put db "six" 6)
             (db-put db "seven" 7 :txn txn3)
             (db-txn-abort txn3))
           (is (= (db-get db "six") ["six" 6]))
-          (is (= (db-get db "seven") [])))))))
+          (is (empty? (db-get db "seven")))
+          ;; tests for secondary database transactionality
+          (db-put db 1 {:login "gw" :name "George Washington"})
+          (db-put db 2 {:login "ja" :name "John Adams"})
+          (db-put db 3 {:login "tj" :name "Thomas Jefferson"})
+          (db-put db 4 {:login "jm" :name "James Madison"})
+          (with-db-txn [txn4 e]
+            (with-db-cursor [cur1 idx1 :txn txn4]
+              (db-cursor-search cur1 "j")
+              (db-cursor-delete cur1)
+              (db-cursor-next cur1)
+              (db-cursor-delete cur1))
+            (db-txn-abort txn4))
+          (is (= (db-get db 2) [2 {:login "ja" :name "John Adams"}]))
+          (is (= (db-get db 4) [4 {:login "jm" :name "James Madison"}]))
+          (with-db-txn [txn5 e]
+            (with-db-cursor [cur2 idx1 :txn txn5]
+              (db-cursor-search cur2 "j")
+              (db-cursor-delete cur2)
+              (db-cursor-next cur2)
+              (db-cursor-delete cur2)))
+          (is (empty? (db-get db 2)))
+          (is (empty? (db-get db 4))))))
+    (rmdir-recursive path)))
