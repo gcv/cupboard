@@ -85,7 +85,8 @@
                   :transactional false
                   :txn-timeout 0        ; in microseconds
                   :txn-no-sync false
-                  :txn-write-no-sync false}
+                  :txn-write-no-sync false
+                  :txn-serializable-isolation false}
         dir (file dir)
         conf (merge defaults (args-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
@@ -94,7 +95,8 @@
                    (.setTransactional (conf :transactional))
                    (.setTxnTimeout (conf :txn-timeout))
                    (.setTxnNoSync (conf :txn-no-sync))
-                   (.setTxnWriteNoSync (conf :txn-write-no-sync)))]
+                   (.setTxnWriteNoSync (conf :txn-write-no-sync))
+                   (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
     (when-not (.exists dir) (.mkdir dir))
     (struct-map db-env
       :dir dir
@@ -128,16 +130,15 @@
   (let [defaults {:txn nil              ; parent transaction, if any
                   :no-sync false
                   :no-wait false
-                  :read-uncommitted false
-                  :read-committed false
-                  :serializable false}
+                  :isolation :repeatable-read}
         conf (merge defaults (args-map conf-args))
-        conf-obj (doto (TransactionConfig.)
-                   (.setNoSync (conf :no-sync))
-                   (.setNoWait (conf :no-wait))
-                   (.setReadUncommitted (conf :read-uncommitted))
-                   (.setReadCommitted (conf :read-committed))
-                   (.setSerializableIsolation (conf :serializable)))
+        conf-obj (let [co (TransactionConfig.)]
+                   (.setNoSync co (conf :no-sync))
+                   (.setNoWait co (conf :no-wait))
+                   (cond
+                     (= (conf :isolation) :read-uncommitted) (.setReadUncommitted co true)
+                     (= (conf :isolation) :read-committed) (.setReadCommitted co true)
+                     (= (conf :isolation) :serializable) (.setSerializableIsolation co true)))
         txn (struct-map txn
               :conf conf
               :status (atom :open)
@@ -352,12 +353,12 @@
 
 (defn db-cursor-open [db & conf-args]
   (let [defaults {:txn nil
-                  :read-committed true
-                  :read-uncommitted false}
+                  :isolation :repeatable-read}
         conf (merge defaults (args-map conf-args))
-        conf-obj (doto (CursorConfig.)
-                   (.setReadCommitted (conf :read-committed))
-                   (.setReadUncommitted (conf :read-uncommitted)))]
+        conf-obj (let [co (CursorConfig.)]
+                   (cond
+                     (= (conf :isolation) :read-uncommitted) (.setReadUncommitted co true)
+                     (= (conf :isolation) :read-committed) (.setReadCommitted co true)))]
     (struct-map db-cursor
       :conf conf                        ; no need to dissoc :txn here
       :cursor-handle (if (db-primary? db)
