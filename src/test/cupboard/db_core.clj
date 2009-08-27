@@ -49,42 +49,42 @@
 
 (deftest types
   (let [now (java.util.Date.)]
-    (db-put *db* "nil"     nil)
+    (db-put *db* "nil" nil)
     (db-put *db* "boolean" true)
-    (db-put *db* "char"    \c)
-    (db-put *db* "byte"    (byte 1))
-    (db-put *db* "short"   (short 1))
-    (db-put *db* "int"     (int 1))
-    (db-put *db* "long"    (long 1))
-    (db-put *db* "bigint"  (bigint 1))
-    (db-put *db* "ratio"   (/ 1 2))
-    (db-put *db* "double"  1.0)
-    (db-put *db* "string"  "hello world")
-    (db-put *db* "date"    now)
+    (db-put *db* "char" \c)
+    (db-put *db* "byte" (byte 1))
+    (db-put *db* "short" (short 1))
+    (db-put *db* "int" (int 1))
+    (db-put *db* "long" (long 1))
+    (db-put *db* "bigint" (bigint 1))
+    (db-put *db* "ratio" (/ 1 2))
+    (db-put *db* "double" 1.0)
+    (db-put *db* "string" "hello world")
+    (db-put *db* "date" now)
     (db-put *db* "keyword" :one)
-    (db-put *db* "symbol"  'one)
-    (db-put *db* "list"    (list 1 2 3))
-    (db-put *db* "vector"  [1 2 3])
-    (db-put *db* "map"     {:one 1 :two 2 :three 3})
-    (db-put *db* "set"     #{:one 2 'three})
-    (is (= (db-get *db* "nil")     ["nil" nil]))
+    (db-put *db* "symbol" 'one)
+    (db-put *db* "list" (list 1 2 3))
+    (db-put *db* "vector" [1 2 3])
+    (db-put *db* "map" {:one 1 :two 2 :three 3})
+    (db-put *db* "set" #{:one 2 'three})
+    (is (= (db-get *db* "nil") ["nil" nil]))
     (is (= (db-get *db* "boolean") ["boolean" true]))
-    (is (= (db-get *db* "char")    ["char" \c]))
-    (is (= (db-get *db* "byte")    ["byte" (byte 1)]))
-    (is (= (db-get *db* "short")   ["short" (short 1)]))
-    (is (= (db-get *db* "int")     ["int" (int 1)]))
-    (is (= (db-get *db* "long")    ["long" (long 1)]))
-    (is (= (db-get *db* "bigint")  ["bigint" (bigint 1)]))
-    (is (= (db-get *db* "ratio")   ["ratio" (/ 1 2)]))
-    (is (= (db-get *db* "double")  ["double" 1.0]))
-    (is (= (db-get *db* "string")  ["string" "hello world"]))
-    (is (= (db-get *db* "date")    ["date" now]))
+    (is (= (db-get *db* "char") ["char" \c]))
+    (is (= (db-get *db* "byte") ["byte" (byte 1)]))
+    (is (= (db-get *db* "short") ["short" (short 1)]))
+    (is (= (db-get *db* "int") ["int" (int 1)]))
+    (is (= (db-get *db* "long") ["long" (long 1)]))
+    (is (= (db-get *db* "bigint") ["bigint" (bigint 1)]))
+    (is (= (db-get *db* "ratio") ["ratio" (/ 1 2)]))
+    (is (= (db-get *db* "double") ["double" 1.0]))
+    (is (= (db-get *db* "string") ["string" "hello world"]))
+    (is (= (db-get *db* "date") ["date" now]))
     (is (= (db-get *db* "keyword") ["keyword" :one]))
-    (is (= (db-get *db* "symbol")  ["symbol" 'one]))
-    (is (= (db-get *db* "list")    ["list" (list 1 2 3)]))
-    (is (= (db-get *db* "vector")  ["vector" [1 2 3]]))
-    (is (= (db-get *db* "map")     ["map" {:one 1 :two 2 :three 3}]))
-    (is (= (db-get *db* "set")     ["set" #{:one 2 'three}]))))
+    (is (= (db-get *db* "symbol") ["symbol" 'one]))
+    (is (= (db-get *db* "list") ["list" (list 1 2 3)]))
+    (is (= (db-get *db* "vector") ["vector" [1 2 3]]))
+    (is (= (db-get *db* "map") ["map" {:one 1 :two 2 :three 3}]))
+    (is (= (db-get *db* "set") ["set" #{:one 2 'three}]))))
 
 
 (deftest cursors
@@ -147,15 +147,15 @@
 
 
 (deftest joins
-  (let [car-1  {:marque "BMW"   :model "X3"       :year 2006 :color "blue"  :awd true}
-        car-2  {:marque "Audi"  :model "TT"       :year 2002 :color "blue"  :awd true}
-        car-3  {:marque "Audi"  :model "allroad"  :year 2002 :color "grey"  :awd true}
-        car-4  {:marque "Audi"  :model "A6 Avant" :year 2006 :color "white" :awd true}
-        car-5  {:marque "Audi"  :model "Q5"       :year 2010 :color "white" :awd true}
-        car-6  {:marque "Ford"  :model "Taurus"   :year 1996 :color "beige" :awd false}
-        car-7  {:marque "BMW"   :model "330i"     :year 2003 :color "blue"  :awd false}
-        car-8  {:marque "Eagle" :model "Summit"   :year 1994 :color "blue"  :awd false}
-        car-9  {:marque "Audi"  :model "A4"       :year 2003 :color "blue"  :awd false}]
+  (let [car-1 {:marque "BMW" :model "X3" :year 2006 :color "blue" :awd true}
+        car-2 {:marque "Audi" :model "TT" :year 2002 :color "blue" :awd true}
+        car-3 {:marque "Audi" :model "allroad" :year 2002 :color "grey" :awd true}
+        car-4 {:marque "Audi" :model "A6 Avant" :year 2006 :color "white" :awd true}
+        car-5 {:marque "Audi" :model "Q5" :year 2010 :color "white" :awd true}
+        car-6 {:marque "Ford" :model "Taurus" :year 1996 :color "beige" :awd false}
+        car-7 {:marque "BMW" :model "330i" :year 2003 :color "blue" :awd false}
+        car-8 {:marque "Eagle" :model "Summit" :year 1994 :color "blue" :awd false}
+        car-9 {:marque "Audi" :model "A4" :year 2003 :color "blue" :awd false}]
     (with-db-sec [idx-color *db-env* *db* "idx-color"
                   :allow-create true :sorted-duplicates true
                   :key-creator-fn :color]
@@ -207,5 +207,4 @@
             (db-put db "seven" 7 :txn txn3)
             (db-txn-abort txn3))
           (is (= (db-get db "six") ["six" 6]))
-          (is (= (db-get db "seven") []))
-          )))))
+          (is (= (db-get db "seven") [])))))))

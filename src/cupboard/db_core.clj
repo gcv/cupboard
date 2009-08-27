@@ -80,24 +80,24 @@
 ;;; ----------------------------------------------------------------------
 
 (defn db-env-open [dir & conf-args]
-  (let [defaults {:allow-create      false
-                  :read-only         false
-                  :transactional     false
-                  :txn-timeout       0  ; in microseconds
-                  :txn-no-sync       false
+  (let [defaults {:allow-create false
+                  :read-only false
+                  :transactional false
+                  :txn-timeout 0        ; in microseconds
+                  :txn-no-sync false
                   :txn-write-no-sync false}
-        dir      (file dir)
-        conf     (merge defaults (args-map conf-args))
+        dir (file dir)
+        conf (merge defaults (args-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
-                   (.setAllowCreate    (conf :allow-create))
-                   (.setReadOnly       (conf :read-only))
-                   (.setTransactional  (conf :transactional))
-                   (.setTxnTimeout     (conf :txn-timeout))
-                   (.setTxnNoSync      (conf :txn-no-sync))
+                   (.setAllowCreate (conf :allow-create))
+                   (.setReadOnly (conf :read-only))
+                   (.setTransactional (conf :transactional))
+                   (.setTxnTimeout (conf :txn-timeout))
+                   (.setTxnNoSync (conf :txn-no-sync))
                    (.setTxnWriteNoSync (conf :txn-write-no-sync)))]
     (when-not (.exists dir) (.mkdir dir))
     (struct-map db-env
-      :dir  dir
+      :dir dir
       :conf conf
       :env-handle (Environment. dir conf-obj))))
 
@@ -125,36 +125,36 @@
 ;;; ----------------------------------------------------------------------
 
 (defn db-txn-begin [db-env & conf-args]
-  (let [defaults {:txn              nil ; parent transaction, if any
-                  :no-sync          false
-                  :no-wait          false
+  (let [defaults {:txn nil              ; parent transaction, if any
+                  :no-sync false
+                  :no-wait false
                   :read-uncommitted false
-                  :read-committed   false
-                  :serializable     false}
-        conf     (merge defaults (args-map conf-args))
+                  :read-committed false
+                  :serializable false}
+        conf (merge defaults (args-map conf-args))
         conf-obj (doto (TransactionConfig.)
-                   (.setNoSync                (conf :no-sync))
-                   (.setNoWait                (conf :no-wait))
-                   (.setReadUncommitted       (conf :read-uncommitted))
-                   (.setReadCommitted         (conf :read-committed))
+                   (.setNoSync (conf :no-sync))
+                   (.setNoWait (conf :no-wait))
+                   (.setReadUncommitted (conf :read-uncommitted))
+                   (.setReadCommitted (conf :read-committed))
                    (.setSerializableIsolation (conf :serializable)))
-        txn      (struct-map txn
-                   :conf conf
-                   :status (atom :open)
-                   :txn-handle (.beginTransaction (db-env :env-handle)
-                                                  (-> conf :txn :txn-handle)
-                                                  conf-obj))]
+        txn (struct-map txn
+              :conf conf
+              :status (atom :open)
+              :txn-handle (.beginTransaction (db-env :env-handle)
+                                             (-> conf :txn :txn-handle)
+                                             conf-obj))]
     txn))
 
 
 (defn db-txn-commit [txn & conf-args]
-  (let [defaults {:no-sync       false
+  (let [defaults {:no-sync false
                   :write-no-sync false}
-        conf     (merge defaults (args-map conf-args))]
+        conf (merge defaults (args-map conf-args))]
     (try
-     (cond (conf :no-sync)       (.commitNoSync (txn :txn-handle))
+     (cond (conf :no-sync) (.commitNoSync (txn :txn-handle))
            (conf :write-no-sync) (.commitWriteNoSync (txn :txn-handle))
-           :else                 (.commit (txn :txn-handle)))
+           :else (.commit (txn :txn-handle)))
      (reset! (txn :status) :committed)
      (catch DatabaseException de
        (reset! (txn :status) de)
@@ -183,22 +183,22 @@
 ;; TODO: Add support for overriding :btree-comparator and :duplicate-comparator
 ;; (DatabaseConfig.setOverrideBtreeCompatator(), etc.)
 (defn db-open [db-env name & conf-args]
-  (let [defaults {:txn               nil
-                  :allow-create      false
-                  :deferred-write    false
-                  :temporary         false
+  (let [defaults {:txn nil
+                  :allow-create false
+                  :deferred-write false
+                  :temporary false
                   :sorted-duplicates false
-                  :exclusive-create  false
-                  :read-only         false
-                  :transactional     (-> db-env :conf :transactional)}
-        conf     (merge defaults (args-map conf-args))
+                  :exclusive-create false
+                  :read-only false
+                  :transactional (-> db-env :conf :transactional)}
+        conf (merge defaults (args-map conf-args))
         conf-obj (doto (DatabaseConfig.)
-                   (.setAllowCreate      (conf :allow-create))
-                   (.setDeferredWrite    (conf :deferred-write))
+                   (.setAllowCreate (conf :allow-create))
+                   (.setDeferredWrite (conf :deferred-write))
                    (.setSortedDuplicates (conf :sorted-duplicates))
-                   (.setExclusiveCreate  (conf :exclusive-create))
-                   (.setReadOnly         (conf :read-only))
-                   (.setTransactional    (conf :transactional)))]
+                   (.setExclusiveCreate (conf :exclusive-create))
+                   (.setReadOnly (conf :read-only))
+                   (.setTransactional (conf :transactional)))]
     (struct-map db
       :name name
       :conf (dissoc conf :txn)
@@ -231,13 +231,13 @@
      :no-dup-data  --- if true, then calls .putNoDupData
      :no-overwrite --- if true, then calls .putNoOverwrite"
   [db key data & opts-args]
-  (let [defaults   {:txn nil}
-        opts       (merge defaults (args-map opts-args))
-        key-entry  (marshal-db-entry key)
+  (let [defaults {:txn nil}
+        opts (merge defaults (args-map opts-args))
+        key-entry (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
-    (cond (opts :no-dup-data)  (.putNoDupData (db :db-handle)
-                                              (-> opts :txn :txn-handle)
-                                              key-entry data-entry)
+    (cond (opts :no-dup-data) (.putNoDupData (db :db-handle)
+                                             (-> opts :txn :txn-handle)
+                                             key-entry data-entry)
           (opts :no-overwrite) (.putNoOverwrite (db :db-handle)
                                                 (-> opts :txn :txn-handle)
                                                 key-entry data-entry)
@@ -250,25 +250,25 @@
      :search-both --- uses Database.getSearchBoth with data specified in :data
      :data        --- if specified, can recycle DatabaseEntry; also used for getSearchBoth"
   [db key & opts-args]
-  (let [defaults   {:txn         nil
-                    :search-both false
-                    :lock-mode   LockMode/DEFAULT}
-        opts       (merge defaults (args-map opts-args))
-        key-entry  (marshal-db-entry key)
+  (let [defaults {:txn nil
+                  :search-both false
+                  :lock-mode LockMode/DEFAULT}
+        opts (merge defaults (args-map opts-args))
+        key-entry (marshal-db-entry key)
         data-entry (marshal-db-entry* opts :data)
-        result     (if (opts :search-both)
-                       (.getSearchBoth (db :db-handle)
-                                       (-> opts :txn :txn-handle)
-                                       key-entry data-entry (opts :lock-mode))
-                       (.get (db :db-handle)
-                             (-> opts :txn :txn-handle)
-                             key-entry data-entry (opts :lock-mode)))]
+        result (if (opts :search-both)
+                   (.getSearchBoth (db :db-handle)
+                                   (-> opts :txn :txn-handle)
+                                   key-entry data-entry (opts :lock-mode))
+                   (.get (db :db-handle)
+                         (-> opts :txn :txn-handle)
+                         key-entry data-entry (opts :lock-mode)))]
     (unmarshal-db-entry* result key-entry data-entry)))
 
 
 (defn db-delete [db key & opts-args]
-  (let [defaults  {:txn nil}
-        opts      (merge defaults (args-map opts-args))
+  (let [defaults {:txn nil}
+        opts (merge defaults (args-map opts-args))
         key-entry (marshal-db-entry key)]
     (.delete (db :db-handle) (-> opts :txn :txn-handle) key-entry)))
 
@@ -279,28 +279,27 @@
 ;;; ----------------------------------------------------------------------
 
 (defn db-sec-open [db-env db-primary name & conf-args]
-  (let [defaults    {:txn               nil
-                     :key-creator-fn    first
-                     :allow-create      false
-                     :sorted-duplicates false
-                     :allow-populate    true
-                     :transactional     (-> db-env :conf :transactional)}
-        conf        (merge defaults (args-map conf-args))
+  (let [defaults {:txn nil
+                  :key-creator-fn first
+                  :allow-create false
+                  :sorted-duplicates false
+                  :allow-populate true
+                  :transactional (-> db-env :conf :transactional)}
+        conf (merge defaults (args-map conf-args))
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]
-                        (let [data     (unmarshal-db-entry data-entry)
+                        (let [data (unmarshal-db-entry data-entry)
                               sec-data ((conf :key-creator-fn) data)]
                           (if sec-data
-                              (do
-                                (marshal-db-entry sec-data result-entry)
-                                true)
+                              (do (marshal-db-entry sec-data result-entry)
+                                  true)
                               false))))
-        conf-obj    (doto (SecondaryConfig.)
-                      (.setKeyCreator       key-creator)
-                      (.setAllowCreate      (conf :allow-create))
-                      (.setSortedDuplicates (conf :sorted-duplicates))
-                      (.setAllowPopulate    (conf :allow-populate))
-                      (.setTransactional    (conf :transactional)))]
+        conf-obj (doto (SecondaryConfig.)
+                   (.setKeyCreator key-creator)
+                   (.setAllowCreate (conf :allow-create))
+                   (.setSortedDuplicates (conf :sorted-duplicates))
+                   (.setAllowPopulate (conf :allow-populate))
+                   (.setTransactional (conf :transactional)))]
     (struct-map db
       :name name
       :conf (dissoc conf :txn)
@@ -322,22 +321,22 @@
      :key  --- if specified, recycles DatabaseEntry
      :data --- if specified, recycles DatabaseEntry"
   [db-sec search-key & opts-args]
-  (let [defaults         {:txn       nil
-                          :lock-mode LockMode/DEFAULT}
-        opts             (merge defaults (args-map opts-args))
+  (let [defaults {:txn nil
+                  :lock-mode LockMode/DEFAULT}
+        opts (merge defaults (args-map opts-args))
         search-key-entry (marshal-db-entry search-key)
-        key-entry        (marshal-db-entry* opts :key)
-        data-entry       (marshal-db-entry* opts :data)
-        result           (.get (db-sec :db-handle)
-                               (-> opts :txn :txn-handle)
-                               search-key-entry key-entry data-entry
-                               (opts :lock-mode))]
+        key-entry (marshal-db-entry* opts :key)
+        data-entry (marshal-db-entry* opts :data)
+        result (.get (db-sec :db-handle)
+                     (-> opts :txn :txn-handle)
+                     search-key-entry key-entry data-entry
+                     (opts :lock-mode))]
     (unmarshal-db-entry* result key-entry data-entry)))
 
 
 (defn db-sec-delete [db-sec search-key & opts-args]
-  (let [defaults     {:txn nil}
-        opts         (merge defaults (args-map opts-args))
+  (let [defaults {:txn nil}
+        opts (merge defaults (args-map opts-args))
         search-entry (marshal-db-entry search-key)]
     (.delete (db-sec :db-handle) (-> opts :txn :txn-handle) search-entry)))
 
@@ -352,12 +351,12 @@
 ;;; ----------------------------------------------------------------------
 
 (defn db-cursor-open [db & conf-args]
-  (let [defaults {:txn              nil
-                  :read-committed   true
+  (let [defaults {:txn nil
+                  :read-committed true
                   :read-uncommitted false}
-        conf     (merge defaults (args-map conf-args))
+        conf (merge defaults (args-map conf-args))
         conf-obj (doto (CursorConfig.)
-                   (.setReadCommitted   (conf :read-committed))
+                   (.setReadCommitted (conf :read-committed))
                    (.setReadUncommitted (conf :read-uncommitted)))]
     (struct-map db-cursor
       :conf conf                        ; no need to dissoc :txn here
@@ -385,33 +384,33 @@
      :data        --- if specified, positions the cursor by both key and :data values
      :exact       --- if true, match the key and optional :data exactly"
   [db-cursor key & opts-args]
-  (let [defaults    {:search-both false
-                     :exact       false
-                     :lock-mode   LockMode/DEFAULT}
-        opts        (merge defaults (args-map opts-args))
+  (let [defaults {:search-both false
+                  :exact false
+                  :lock-mode LockMode/DEFAULT}
+        opts (merge defaults (args-map opts-args))
         search-both (opts :search-both)
-        exact       (opts :exact)
-        lock-mode   (opts :lock-mode)
-        key-entry   (marshal-db-entry key)
-        pkey-entry  (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
-        data-entry  (marshal-db-entry* opts :data)
+        exact (opts :exact)
+        lock-mode (opts :lock-mode)
+        key-entry (marshal-db-entry key)
+        pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
+        data-entry (marshal-db-entry* opts :data)
         ;; search-fn1 is for primary database cursor lookups
         search-fn1 (cond
                      (and search-both exact) #(.getSearchBoth %1 %2 %3 %4)
-                     search-both             #(.getSearchBothRange %1 %2 %3 %4)
-                     exact                   #(.getSearchKey %1 %2 %3 %4)
-                     :else                   #(.getSearchKeyRange %1 %2 %3 %4))
+                     search-both #(.getSearchBothRange %1 %2 %3 %4)
+                     exact #(.getSearchKey %1 %2 %3 %4)
+                     :else #(.getSearchKeyRange %1 %2 %3 %4))
         ;; search-fn2 is for secondary database cursor lookups
         search-fn2 (cond
                      (and search-both exact) #(.getSearchBoth %1 %2 %3 %4 %5)
-                     search-both             #(.getSearchBothRange %1 %2 %3 %4 %5)
-                     exact                   #(.getSearchKey %1 %2 %3 %4 %5)
-                     :else                   #(.getSearchKeyRange %1 %2 %3 %4 %5))
-        result     (if (db-cursor-primary? db-cursor)
-                       (search-fn1 (db-cursor :cursor-handle)
-                                   key-entry data-entry lock-mode)
-                       (search-fn2 (db-cursor :cursor-handle)
-                                   key-entry pkey-entry data-entry lock-mode))]
+                     search-both #(.getSearchBothRange %1 %2 %3 %4 %5)
+                     exact #(.getSearchKey %1 %2 %3 %4 %5)
+                     :else #(.getSearchKeyRange %1 %2 %3 %4 %5))
+        result (if (db-cursor-primary? db-cursor)
+                   (search-fn1 (db-cursor :cursor-handle)
+                               key-entry data-entry lock-mode)
+                   (search-fn2 (db-cursor :cursor-handle)
+                               key-entry pkey-entry data-entry lock-mode))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
                          data-entry)))
@@ -424,16 +423,16 @@
         :key  --- if specified, reuses the given DatabaseEntry
         :data --- if specified, reuses the given DatabaseEntry"
      [db-cursor# & opts-args#]
-     (let [defaults#   {:lock-mode LockMode/DEFAULT}
-           opts#       (merge defaults# (args-map opts-args#))
-           key-entry#  (marshal-db-entry* opts# :key)
+     (let [defaults# {:lock-mode LockMode/DEFAULT}
+           opts# (merge defaults# (args-map opts-args#))
+           key-entry# (marshal-db-entry* opts# :key)
            pkey-entry# (when (db-cursor-sec? db-cursor#) (marshal-db-entry* opts# :pkey))
            data-entry# (marshal-db-entry* opts# :data)
-           result#     (if (db-cursor-primary? db-cursor#)
-                           (~java-fn (db-cursor# :cursor-handle)
-                                     key-entry# data-entry# (opts# :lock-mode))
-                           (~java-fn (db-cursor# :cursor-handle)
-                                     key-entry# pkey-entry# data-entry# (opts# :lock-mode)))]
+           result# (if (db-cursor-primary? db-cursor#)
+                       (~java-fn (db-cursor# :cursor-handle)
+                                 key-entry# data-entry# (opts# :lock-mode))
+                       (~java-fn (db-cursor# :cursor-handle)
+                                 key-entry# pkey-entry# data-entry# (opts# :lock-mode)))]
        (unmarshal-db-entry* result#
                             (if (db-cursor-primary? db-cursor#) key-entry# pkey-entry#)
                             data-entry#))))
@@ -448,43 +447,43 @@
      :key  --- if specified, reuses the given DatabaseEntry
      :data --- if specified, reuses the given DatabaseEntry"
   [db-cursor & opts-args]
-  (let [defaults   {:direction :forward
-                    :skip-dups false
-                    :lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (args-map opts-args))
-        direction  (opts :direction)
-        skip-dups  (opts :skip-dups)
-        key-entry  (marshal-db-entry* opts :key)
+  (let [defaults {:direction :forward
+                  :skip-dups false
+                  :lock-mode LockMode/DEFAULT}
+        opts (merge defaults (args-map opts-args))
+        direction (opts :direction)
+        skip-dups (opts :skip-dups)
+        key-entry (marshal-db-entry* opts :key)
         pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
         data-entry (marshal-db-entry* opts :data)
         ;; next-fn1 is for primary database cursors
-        next-fn1   (cond
-                     (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
-                     (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4)
-                     (= direction :forward)                 #(.getNext %1 %2 %3 %4)
-                     (= direction :back)                    #(.getPrev %1 %2 %3 %4))
+        next-fn1 (cond
+                   (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
+                   (and (= direction :back) skip-dups) #(.getPrevNoDup %1 %2 %3 %4)
+                   (= direction :forward) #(.getNext %1 %2 %3 %4)
+                   (= direction :back) #(.getPrev %1 %2 %3 %4))
         ;; next-fn2 is for secondary database cursors
-        next-fn2   (cond
-                     (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4 %5)
-                     (and (= direction :back) skip-dups)    #(.getPrevNoDup %1 %2 %3 %4 %5)
-                     (= direction :forward)                 #(.getNext %1 %2 %3 %4 %5)
-                     (= direction :back)                    #(.getPrev %1 %2 %3 %4 %5))
-        result     (if (db-cursor-primary? db-cursor)
-                       (next-fn1 (db-cursor :cursor-handle)
-                                 key-entry data-entry (opts :lock-mode))
-                       (next-fn2 (db-cursor :cursor-handle)
-                                 key-entry pkey-entry data-entry (opts :lock-mode)))]
+        next-fn2 (cond
+                   (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4 %5)
+                   (and (= direction :back) skip-dups) #(.getPrevNoDup %1 %2 %3 %4 %5)
+                   (= direction :forward) #(.getNext %1 %2 %3 %4 %5)
+                   (= direction :back) #(.getPrev %1 %2 %3 %4 %5))
+        result (if (db-cursor-primary? db-cursor)
+                   (next-fn1 (db-cursor :cursor-handle)
+                             key-entry data-entry (opts :lock-mode))
+                   (next-fn2 (db-cursor :cursor-handle)
+                             key-entry pkey-entry data-entry (opts :lock-mode)))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
                          data-entry)))
 
 
 (defn db-cursor-put [db-cursor key data & opts-args]
-  (let [opts       (args-map opts-args)
-        key-entry  (marshal-db-entry key)
+  (let [opts (args-map opts-args)
+        key-entry (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
-    (cond (opts :no-dup-data)  (.putNoDupData
-                                (db-cursor :cursor-handle) key-entry data-entry)
+    (cond (opts :no-dup-data) (.putNoDupData
+                               (db-cursor :cursor-handle) key-entry data-entry)
           (opts :no-overwrite) (.putNoOverwrite
                                 (db-cursor :cursor-handle) key-entry data-entry)
           :else (.put (db-cursor :cursor-handle) key-entry data-entry))))
@@ -507,12 +506,12 @@
 
 (defn db-join-cursor-open [db-cursors & conf-args]
   (let [defaults {:no-sort false}
-        conf     (merge defaults (args-map conf-args))
+        conf (merge defaults (args-map conf-args))
         conf-obj (doto (JoinConfig.)
                    (.setNoSort (conf :no-sort)))
-        pdb-obj  (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
+        pdb-obj (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
     (struct-map db-join-cursor
-      :conf    conf
+      :conf conf
       :cursors db-cursors
       :join-cursor-handle (.join
                            pdb-obj
@@ -528,11 +527,11 @@
 
 
 (defn db-join-cursor-next [db-join-cursor & opts-args]
-  (let [defaults   {:lock-mode LockMode/DEFAULT}
-        opts       (merge defaults (args-map opts-args))
-        key-entry  (marshal-db-entry* opts :key)
+  (let [defaults {:lock-mode LockMode/DEFAULT}
+        opts (merge defaults (args-map opts-args))
+        key-entry (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
-        result     (.getNext
-                    (db-join-cursor :join-cursor-handle)
-                    key-entry data-entry (opts :lock-mode))]
+        result (.getNext
+                (db-join-cursor :join-cursor-handle)
+                key-entry data-entry (opts :lock-mode))]
     (unmarshal-db-entry* result key-entry data-entry)))
