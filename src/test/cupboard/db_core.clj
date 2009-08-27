@@ -191,7 +191,21 @@
         (with-db-sec [idx1 e db "idx1" :key-creator-fn :login :allow-create true]
           (db-put db "one" 1)
           (with-db-txn [txn1 e]
-            ;; doesn't work yet, :txn not passed into db-put
-            (db-put db "two" 2)
-            (db-put db "three" 3))
-          (is (= (db-get db "one") ["one" 1])))))))
+            (db-put db "two" 2 :txn txn1)
+            (db-put db "three" 3 :txn txn1))
+          (is (= (db-get db "one") ["one" 1]))
+          (is (= (db-get db "two") ["two" 2]))
+          (is (= (db-get db "three") ["three" 3]))
+          (with-db-txn [txn2 e]
+            (db-put db "four" 4 :txn txn2)
+            (db-put db "five" 5 :txn txn2)
+            (db-txn-abort txn2))
+          (is (= (db-get db "four") []))
+          (is (= (db-get db "five") []))
+          (with-db-txn [txn3 e]
+            (db-put db "six" 6)
+            (db-put db "seven" 7 :txn txn3)
+            (db-txn-abort txn3))
+          (is (= (db-get db "six") ["six" 6]))
+          (is (= (db-get db "seven") []))
+          )))))
