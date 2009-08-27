@@ -2,7 +2,8 @@
   (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode]
-           [com.sleepycat.je EnvironmentConfig Environment]
+           [com.sleepycat.je Environment EnvironmentConfig]
+           [com.sleepycat.je Transaction TransactionConfig]
            [com.sleepycat.je Database DatabaseConfig]
            [com.sleepycat.je Cursor SecondaryCursor JoinCursor CursorConfig JoinConfig]
            [com.sleepycat.je SecondaryDatabase SecondaryConfig SecondaryKeyCreator]))
@@ -17,6 +18,12 @@
   :dir
   :conf
   :env-handle)
+
+
+(defstruct* txn
+  :conf
+  :status
+  :txn-handle)
 
 
 (defstruct* db
@@ -73,15 +80,21 @@
 ;;; ----------------------------------------------------------------------
 
 (defn db-env-open [dir & conf-args]
-  (let [defaults {:allow-create  false
-                  :read-only     false
-                  :transactional false}
+  (let [defaults {:allow-create      false
+                  :read-only         false
+                  :transactional     false
+                  :txn-timeout       0  ; in microseconds
+                  :txn-no-sync       false
+                  :txn-write-no-sync false}
         dir      (file dir)
         conf     (merge defaults (args-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
-                   (.setAllowCreate   (conf :allow-create))
-                   (.setReadOnly      (conf :read-only))
-                   (.setTransactional (conf :transactional)))]
+                   (.setAllowCreate    (conf :allow-create))
+                   (.setReadOnly       (conf :read-only))
+                   (.setTransactional  (conf :transactional))
+                   (.setTxnTimeout     (conf :txn-timeout))
+                   (.setTxnNoSync      (conf :txn-no-sync))
+                   (.setTxnWriteNoSync (conf :txn-write-no-sync)))]
     (when-not (.exists dir) (.mkdir dir))
     (struct-map db-env
       :dir  dir
@@ -103,6 +116,63 @@
 
 ;; TODO: EnvironmentMutableConfig handling
 ;; TODO: Environment statistics gathering
+;; TODO: (defn db-env-checkpoint ...)
+
+
+
+;;; ----------------------------------------------------------------------
+;;; transactions
+;;; ----------------------------------------------------------------------
+
+(defn db-txn-begin [db-env & conf-args]
+  (let [defaults {:txn              nil ; parent transaction, if any
+                  :no-sync          false
+                  :no-wait          false
+                  :read-uncommitted false
+                  :read-committed   false
+                  :serializable     false}
+        conf     (merge defaults (args-map conf-args))
+        conf-obj (doto (TransactionConfig.)
+                   (.setNoSync                (conf :no-sync))
+                   (.setNoWait                (conf :no-wait))
+                   (.setReadUncommitted       (conf :read-uncommitted))
+                   (.setReadCommitted         (conf :read-committed))
+                   (.setSerializableIsolation (conf :serializable)))
+        txn      (struct-map txn
+                   :conf conf
+                   :status (atom :open)
+                   :txn-handle (.beginTransaction
+                                (db-env :env-handle)
+                                (conf :txn)
+                                conf-obj))]
+    txn))
+
+
+(defn db-txn-commit [txn & conf-args]
+  (let [defaults {:no-sync       false
+                  :write-no-sync false}
+        conf     (merge defaults (args-map conf-args))]
+    (try
+     (cond (conf :no-sync)       (.commitNoSync (txn :txn-handle))
+           (conf :write-no-sync) (.commitWriteNoSync (txn :txn-handle))
+           :else                 (.commit (txn :txn-handle)))
+     (reset! (txn :status) :committed)
+     (catch DatabaseException de
+       (reset! (txn :status) de)
+       (throw de)))))
+
+
+(defn db-txn-abort [txn]
+  (try
+   (.abort (txn :txn-handle))
+   (reset! (txn :status) :aborted)
+   (catch DatabaseException de
+     (reset! (txn :status) de)
+     (throw de))))
+
+
+(def-with-db-macro with-db-txn db-txn-begin
+  (fn [txn] (when (= @(txn :status) :open) (db-txn-commit txn))))
 
 
 
@@ -120,7 +190,7 @@
                   :sorted-duplicates false
                   :exclusive-create  false
                   :read-only         false
-                  :transactional     false}
+                  :transactional     (-> db-env :conf :transactional)}
         conf     (merge defaults (args-map conf-args))
         conf-obj (doto (DatabaseConfig.)
                    (.setAllowCreate      (conf :allow-create))
@@ -203,7 +273,7 @@
                      :allow-create      false
                      :sorted-duplicates false
                      :allow-populate    true
-                     :transactional     false}
+                     :transactional     (-> db-env :conf :transactional)}
         conf        (merge defaults (args-map conf-args))
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]

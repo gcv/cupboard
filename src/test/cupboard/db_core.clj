@@ -182,3 +182,16 @@
                 (is (= (db-join-cursor-next j) [7 car-7]))
                 (is (= (db-join-cursor-next j) [9 car-9]))
                 (is (= (db-join-cursor-next j) []))))))))))
+
+
+(deftest transactions
+  (let [path (make-temp-dir)]
+    (with-db-env [e path :allow-create true :transactional true]
+      (with-db [db e "db" :allow-create true]
+        (with-db-sec [idx1 e db "idx1" :key-creator-fn :login :allow-create true]
+          (db-put db "one" 1)
+          (with-db-txn [txn1 e]
+            ;; doesn't work yet, :txn not passed into db-put
+            (db-put db "two" 2)
+            (db-put db "three" 3))
+          (is (= (db-get db "one") ["one" 1])))))))
