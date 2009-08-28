@@ -1,6 +1,7 @@
 (ns test.cupboard.db-core
   (:use [cupboard utils db-core])
-  (:use [clojure.contrib test-is]))
+  (:use [clojure.contrib test-is])
+  (:import [com.sleepycat.je OperationStatus DatabaseException]))
 
 
 
@@ -36,6 +37,24 @@
 ;;; ----------------------------------------------------------------------
 ;;; tests
 ;;; ----------------------------------------------------------------------
+
+(deftest db-operations
+  (is (thrown? DatabaseException (db-open *db-env* "not here" :allow-create false)))
+  (with-db [db *db-env* "newly created" :allow-create true])
+  (with-db [db *db-env* "newly created" :allow-create false]
+    (is (is-db? db))
+    (is (zero? (db-count db))))
+  (db-env-rename-db *db-env* "newly created" "my-db")
+  (with-db [db *db-env* "my-db" :allow-create false]
+    (is (is-db? db))
+    (is (zero? (db-count db)))
+    (db-put db "one" 1)
+    (db-put db "two" 2)
+    (is (= (db-count db) 2)))
+  (is (= (db-env-truncate-db *db-env* "my-db" :count true) 2))
+  (db-env-remove-db *db-env* "my-db")
+  (is (thrown? DatabaseException (db-open *db-env* "my-db" :allow-create false))))
+
 
 (deftest basics
   (db-put *db* "one" 1)
@@ -85,6 +104,18 @@
     (is (= (db-get *db* "vector") ["vector" [1 2 3]]))
     (is (= (db-get *db* "map") ["map" {:one 1 :two 2 :three 3}]))
     (is (= (db-get *db* "set") ["set" #{:one 2 'three}]))))
+
+
+(deftest duplicates
+  (is (= (db-put *db* "a" 1) OperationStatus/SUCCESS))
+  (is (= (db-put *db* "a" 1 :no-overwrite true) OperationStatus/KEYEXIST))
+  (with-db [db *db-env* "db2" :allow-create true :sorted-duplicates true]
+    (is (= (db-put db "a" 1) OperationStatus/SUCCESS))
+    (is (= (db-put db "b" 2) OperationStatus/SUCCESS))
+    (is (= (db-put db "a" 3) OperationStatus/SUCCESS))
+    (is (= (db-put db "b" 2 :no-dup-data true) OperationStatus/KEYEXIST))
+    (is (= (db-put db "b" 4 :no-overwrite true) OperationStatus/KEYEXIST)))
+  (db-env-remove-db *db-env* "db2"))
 
 
 (deftest cursors

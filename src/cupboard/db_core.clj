@@ -1,7 +1,7 @@
 (ns cupboard.db-core
   (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
-  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode]
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CheckpointConfig]
            [com.sleepycat.je Environment EnvironmentConfig]
            [com.sleepycat.je Transaction TransactionConfig]
            [com.sleepycat.je Database DatabaseConfig]
@@ -116,9 +116,37 @@
   (.sync (db-env :env-handle)))
 
 
+(defn db-env-checkpoint [db-env & opts]
+  (let [opts (args-map opts)
+        cpc (when-not (empty? opts) (CheckpointConfig.))]
+    (when (opts :force) (.setForce cpc true))
+    (when (contains? opts :threshold-size) (.setKBytes (opts :threshold-size)))
+    (when (contains? opts :threshold-time) (.setMinutes (opts :threshold-time)))
+    (when (opts :minimize-recovery-time) (.setMinimizeRecoveryTime true))
+    (.checkpoint (db-env :env-handle) cpc)))
+
+
+(defn db-env-remove-db [db-env db-name & opts-args]
+  (let [defaults {:txn nil}
+        opts (merge defaults (args-map opts-args))]
+    (.removeDatabase (db-env :env-handle) (opts :txn) db-name)))
+
+
+(defn db-env-rename-db [db-env old-name new-name & opts-args]
+  (let [defaults {:txn nil}
+        opts (merge defaults (args-map opts-args))]
+    (.renameDatabase (db-env :env-handle) (opts :txn) old-name new-name)))
+
+
+(defn db-env-truncate-db [db-env db-name & opts-args]
+  (let [defaults {:txn nil
+                  :count false}
+        opts (merge defaults (args-map opts-args))]
+    (.truncateDatabase (db-env :env-handle) (opts :txn) db-name (opts :count))))
+
+
 ;; TODO: EnvironmentMutableConfig handling
 ;; TODO: Environment statistics gathering
-;; TODO: (defn db-env-checkpoint ...)
 
 
 
@@ -221,10 +249,6 @@
 
 
 ;; TODO: (defn db-preload [db & preload-conf-args] ...)
-;; TODO: (defn db-remove [db-env name] ...)
-;; TODO: (defn db-truncate [db-env name & truncate-conf-args] ...)
-;; TODO: (defn db-verify ...)
-;; args: {:txn handle :count false}
 
 
 (defn db-put
@@ -272,6 +296,10 @@
         opts (merge defaults (args-map opts-args))
         key-entry (marshal-db-entry key)]
     (.delete (db :db-handle) (-> opts :txn :txn-handle) key-entry)))
+
+
+(defn db-count [db]
+  (.count (db :db-handle)))
 
 
 
