@@ -140,20 +140,6 @@
     (.setMutableConfig (db-env :env-handle) conf-obj)))
 
 
-(defn db-env-sync [db-env]
-  (.sync (db-env :env-handle)))
-
-
-(defn db-env-checkpoint [db-env & opts]
-  (let [opts (args-map opts)
-        cpc (when-not (empty? opts) (CheckpointConfig.))]
-    (when (opts :force) (.setForce cpc true))
-    (when (contains? opts :threshold-size) (.setKBytes (opts :threshold-size)))
-    (when (contains? opts :threshold-time) (.setMinutes (opts :threshold-time)))
-    (when (opts :minimize-recovery-time) (.setMinimizeRecoveryTime true))
-    (.checkpoint (db-env :env-handle) cpc)))
-
-
 (defn db-env-remove-db [db-env db-name & opts-args]
   (let [defaults {:txn nil}
         opts (merge defaults (args-map opts-args))]
@@ -171,6 +157,42 @@
                   :count false}
         opts (merge defaults (args-map opts-args))]
     (.truncateDatabase (db-env :env-handle) (opts :txn) db-name (opts :count))))
+
+
+(defn db-env-sync [db-env]
+  (.sync (db-env :env-handle)))
+
+
+(defn db-env-checkpoint [db-env & opts]
+  (let [opts (args-map opts)
+        cpc (when-not (empty? opts) (CheckpointConfig.))]
+    (when (opts :force) (.setForce cpc true))
+    (when (contains? opts :threshold-size) (.setKBytes (opts :threshold-size)))
+    (when (contains? opts :threshold-time) (.setMinutes (opts :threshold-time)))
+    (when (opts :minimize-recovery-time) (.setMinimizeRecoveryTime true))
+    (.checkpoint (db-env :env-handle) cpc)))
+
+
+(defn db-env-clean-log
+  "Cleans database log files and prepares them for disposal at next checkpoint.
+  Normally done by background thread. Returns number of log files
+  cleaned. May be called repeatedly until it returns 0."
+  [db-env]
+  (.cleanLog (db-env :env-handle)))
+
+
+(defn db-env-evict-memory
+  "Keeps memory usage within defined cache boundaries. Normally done
+  by background thread."
+  [db-env]
+  (.evictMemory (db-env :env-handle)))
+
+
+(defn db-env-compress
+  "Compresses in-memory data structures after deletes. Normally done
+  by background thread."
+  [db-env]
+  (.compress (db-env :env-handle)))
 
 
 ;; TODO: Environment statistics gathering
