@@ -1,7 +1,7 @@
 (ns cupboard.db-core
   (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
-  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode]
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CacheMode]
            [com.sleepycat.je CheckpointConfig StatsConfig]
            [com.sleepycat.je Environment EnvironmentConfig]
            [com.sleepycat.je Transaction TransactionConfig]
@@ -657,7 +657,12 @@
   (.putCurrent (db-cursor :cursor-handle) (marshal-db-entry new-data)))
 
 
-;; TODO: Write functions to manipulate the cursor's cache mode
+(defn db-cursor-cache-mode [db-cursor mode]
+  (let [mode-obj (cond (= mode :default) CacheMode/DEFAULT
+                       (= mode :keep-hot) CacheMode/KEEP_HOT
+                       (= mode :unchanged) CacheMode/UNCHANGED
+                       :else (throw (RuntimeException. "invalid cursor cache mode")))]
+    (.setCacheMode (db-cursor :cursor-handle) mode-obj)))
 
 
 (defn db-join-cursor-open [db-cursors & conf-args]
