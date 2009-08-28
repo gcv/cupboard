@@ -16,29 +16,26 @@
 
 (defstruct* db-env
   :dir
-  :conf
+  :transactional
   :env-handle)
 
 
 (defstruct* txn
-  :conf
   :status
   :txn-handle)
 
 
 (defstruct* db
   :name
-  :conf
+  :sorted-duplicates
   :db-handle)
 
 
 (defstruct* db-cursor
-  :conf
   :cursor-handle)
 
 
 (defstruct* db-join-cursor
-  :conf
   :cursors
   :join-cursor-handle)
 
@@ -112,10 +109,10 @@
                    (.setTxnWriteNoSync (conf :txn-write-no-sync))
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
     (when-not (.exists dir) (.mkdir dir))
-    (struct-map db-env
-      :dir dir
-      :conf conf
-      :env-handle (Environment. dir conf-obj))))
+    (struct db-env
+            dir
+            (conf :transactional)
+            (Environment. dir conf-obj))))
 
 
 (defn db-env-close [db-env]
@@ -181,12 +178,11 @@
                      (= (conf :isolation) :read-uncommitted) (.setReadUncommitted co true)
                      (= (conf :isolation) :read-committed) (.setReadCommitted co true)
                      (= (conf :isolation) :serializable) (.setSerializableIsolation co true)))
-        txn (struct-map txn
-              :conf conf
-              :status (atom :open)
-              :txn-handle (.beginTransaction (db-env :env-handle)
-                                             (-> conf :txn :txn-handle)
-                                             conf-obj))]
+        txn (struct txn
+                    (atom :open)
+                    (.beginTransaction (db-env :env-handle)
+                                       (-> conf :txn :txn-handle)
+                                       conf-obj))]
     txn))
 
 
@@ -233,7 +229,7 @@
                   :sorted-duplicates false
                   :exclusive-create false
                   :read-only false
-                  :transactional (-> db-env :conf :transactional)}
+                  :transactional (db-env :transactional)}
         conf (merge defaults (args-map conf-args))
         conf-obj (doto (DatabaseConfig.)
                    (.setAllowCreate (conf :allow-create))
@@ -242,12 +238,12 @@
                    (.setExclusiveCreate (conf :exclusive-create))
                    (.setReadOnly (conf :read-only))
                    (.setTransactional (conf :transactional)))]
-    (struct-map db
-      :name name
-      :conf (dissoc conf :txn)
-      :db-handle (.openDatabase (db-env :env-handle)
-                                (-> conf :txn :txn-handle)
-                                name conf-obj))))
+    (struct db
+            name
+            (conf :sorted-duplicates)
+            (.openDatabase (db-env :env-handle)
+                           (-> conf :txn :txn-handle)
+                           name conf-obj))))
 
 
 (defn db-close [db]
@@ -258,8 +254,9 @@
 
 
 (defn db-sync [db]
-  (when (.getDeferredWrite (db :conf))
-    (.sync (db :db-handle))))
+  (let [db-handle (db :db-handle)]
+    (when (.. db-handle getConfig getDeferredWrite)
+      (.sync db-handle))))
 
 
 ;; TODO: (defn db-preload [db & preload-conf-args] ...)
@@ -328,7 +325,7 @@
                   :allow-create false
                   :sorted-duplicates false
                   :allow-populate true
-                  :transactional (-> db-env :conf :transactional)}
+                  :transactional (db-env :transactional)}
         conf (merge defaults (args-map conf-args))
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]
@@ -344,13 +341,12 @@
                    (.setSortedDuplicates (conf :sorted-duplicates))
                    (.setAllowPopulate (conf :allow-populate))
                    (.setTransactional (conf :transactional)))]
-    (struct-map db
-      :name name
-      :conf (dissoc conf :txn)
-      :db-handle (.openSecondaryDatabase
-                  (db-env :env-handle)
-                  (-> conf :txn :txn-handle)
-                  name (db-primary :db-handle) conf-obj))))
+    (struct db
+            name
+            (conf :sorted-duplicates)
+            (.openSecondaryDatabase (db-env :env-handle)
+                                    (-> conf :txn :txn-handle)
+                                    name (db-primary :db-handle) conf-obj))))
 
 
 (defn db-sec-close [db-sec]
@@ -402,15 +398,14 @@
                    (cond
                      (= (conf :isolation) :read-uncommitted) (.setReadUncommitted co true)
                      (= (conf :isolation) :read-committed) (.setReadCommitted co true)))]
-    (struct-map db-cursor
-      :conf conf                        ; no need to dissoc :txn here
-      :cursor-handle (if (db-primary? db)
-                         (.openCursor (db :db-handle)
+    (struct db-cursor
+            (if (db-primary? db)
+                (.openCursor (db :db-handle)
+                             (-> conf :txn :txn-handle)
+                             conf-obj)
+                (.openSecondaryCursor (db :db-handle)
                                       (-> conf :txn :txn-handle)
-                                      conf-obj)
-                         (.openSecondaryCursor (db :db-handle)
-                                               (-> conf :txn :txn-handle)
-                                               conf-obj)))))
+                                      conf-obj)))))
 
 
 (defn db-cursor-close [db-cursor]
@@ -556,13 +551,11 @@
         conf-obj (doto (JoinConfig.)
                    (.setNoSort (conf :no-sort)))
         pdb-obj (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
-    (struct-map db-join-cursor
-      :conf conf
-      :cursors db-cursors
-      :join-cursor-handle (.join
-                           pdb-obj
-                           (into-array (map :cursor-handle db-cursors))
-                           conf-obj))))
+    (struct db-join-cursor
+            db-cursors
+            (.join pdb-obj
+                   (into-array (map :cursor-handle db-cursors))
+                   conf-obj))))
 
 
 (defn db-join-cursor-close [db-join-cursor]

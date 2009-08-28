@@ -83,7 +83,7 @@
         (let [index-db (index-dbs index-slot)]
           ;; TODO: Handle this error better than with just an assert.
           (when (contains? opts :sorted-duplicates)
-            (assert (= (-> index-db :conf :sorted-duplicates) (opts :sorted-duplicates))))
+            (assert (= (index-db :sorted-duplicates) (opts :sorted-duplicates))))
           index-db)
         ;; not open yet: open and return
         (let [[_ shelf-info] (db-get (cb :shelves-db) (shelf :name))
