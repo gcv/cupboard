@@ -63,7 +63,7 @@
 
 
 ;;; ----------------------------------------------------------------------
-;;; convenience macro definition macro
+;;; convenience functions, macros, and maps
 ;;; ----------------------------------------------------------------------
 
 (defmacro def-with-db-macro [macro-name open-fn close-fn]
@@ -72,6 +72,18 @@
         (try
          ~@body#
          (finally (~'~close-fn ~var#))))))
+
+
+(defonce *lock-modes*
+  ;; NB: :serializable is not available here, as it does not make
+  ;; sense outside a transaction.
+  {:read-uncommitted LockMode/READ_UNCOMMITTED
+   :dirty-read LockMode/READ_UNCOMMITTED
+   :read-committed LockMode/READ_COMMITTED
+   :default LockMode/DEFAULT
+   :repeatable-read LockMode/DEFAULT
+   :rmw LockMode/RMW
+   :read-modify-write LockMode/RMW})
 
 
 
@@ -277,17 +289,18 @@
   [db key & opts-args]
   (let [defaults {:txn nil
                   :search-both false
-                  :lock-mode LockMode/DEFAULT}
+                  :lock-mode :default}
         opts (merge defaults (args-map opts-args))
         key-entry (marshal-db-entry key)
         data-entry (marshal-db-entry* opts :data)
+        lock-mode (*lock-modes* (opts :lock-mode))
         result (if (opts :search-both)
                    (.getSearchBoth (db :db-handle)
                                    (-> opts :txn :txn-handle)
-                                   key-entry data-entry (opts :lock-mode))
+                                   key-entry data-entry lock-mode)
                    (.get (db :db-handle)
                          (-> opts :txn :txn-handle)
-                         key-entry data-entry (opts :lock-mode)))]
+                         key-entry data-entry lock-mode))]
     (unmarshal-db-entry* result key-entry data-entry)))
 
 
@@ -351,7 +364,7 @@
      :data --- if specified, recycles DatabaseEntry"
   [db-sec search-key & opts-args]
   (let [defaults {:txn nil
-                  :lock-mode LockMode/DEFAULT}
+                  :lock-mode :default}
         opts (merge defaults (args-map opts-args))
         search-key-entry (marshal-db-entry search-key)
         key-entry (marshal-db-entry* opts :key)
@@ -359,7 +372,7 @@
         result (.get (db-sec :db-handle)
                      (-> opts :txn :txn-handle)
                      search-key-entry key-entry data-entry
-                     (opts :lock-mode))]
+                     (*lock-modes* (opts :lock-mode)))]
     (unmarshal-db-entry* result key-entry data-entry)))
 
 
@@ -415,11 +428,11 @@
   [db-cursor key & opts-args]
   (let [defaults {:search-both false
                   :exact false
-                  :lock-mode LockMode/DEFAULT}
+                  :lock-mode :default}
         opts (merge defaults (args-map opts-args))
         search-both (opts :search-both)
         exact (opts :exact)
-        lock-mode (opts :lock-mode)
+        lock-mode (*lock-modes* (opts :lock-mode))
         key-entry (marshal-db-entry key)
         pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
         data-entry (marshal-db-entry* opts :data)
@@ -452,16 +465,17 @@
         :key  --- if specified, reuses the given DatabaseEntry
         :data --- if specified, reuses the given DatabaseEntry"
      [db-cursor# & opts-args#]
-     (let [defaults# {:lock-mode LockMode/DEFAULT}
+     (let [defaults# {:lock-mode :default}
            opts# (merge defaults# (args-map opts-args#))
            key-entry# (marshal-db-entry* opts# :key)
            pkey-entry# (when (db-cursor-sec? db-cursor#) (marshal-db-entry* opts# :pkey))
            data-entry# (marshal-db-entry* opts# :data)
+           lock-mode# (*lock-modes* (opts# :lock-mode))
            result# (if (db-cursor-primary? db-cursor#)
                        (~java-fn (db-cursor# :cursor-handle)
-                                 key-entry# data-entry# (opts# :lock-mode))
+                                 key-entry# data-entry# lock-mode#)
                        (~java-fn (db-cursor# :cursor-handle)
-                                 key-entry# pkey-entry# data-entry# (opts# :lock-mode)))]
+                                 key-entry# pkey-entry# data-entry# lock-mode#))]
        (unmarshal-db-entry* result#
                             (if (db-cursor-primary? db-cursor#) key-entry# pkey-entry#)
                             data-entry#))))
@@ -478,13 +492,14 @@
   [db-cursor & opts-args]
   (let [defaults {:direction :forward
                   :skip-dups false
-                  :lock-mode LockMode/DEFAULT}
+                  :lock-mode :default}
         opts (merge defaults (args-map opts-args))
         direction (opts :direction)
         skip-dups (opts :skip-dups)
         key-entry (marshal-db-entry* opts :key)
         pkey-entry (when (db-cursor-sec? db-cursor) (marshal-db-entry* opts :pkey))
         data-entry (marshal-db-entry* opts :data)
+        lock-mode (*lock-modes* (opts :lock-mode))
         ;; next-fn1 is for primary database cursors
         next-fn1 (cond
                    (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
@@ -499,9 +514,9 @@
                    (= direction :back) #(.getPrev %1 %2 %3 %4 %5))
         result (if (db-cursor-primary? db-cursor)
                    (next-fn1 (db-cursor :cursor-handle)
-                             key-entry data-entry (opts :lock-mode))
+                             key-entry data-entry lock-mode)
                    (next-fn2 (db-cursor :cursor-handle)
-                             key-entry pkey-entry data-entry (opts :lock-mode)))]
+                             key-entry pkey-entry data-entry lock-mode))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
                          data-entry)))
@@ -556,11 +571,11 @@
 
 
 (defn db-join-cursor-next [db-join-cursor & opts-args]
-  (let [defaults {:lock-mode LockMode/DEFAULT}
+  (let [defaults {:lock-mode :default}
         opts (merge defaults (args-map opts-args))
         key-entry (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
         result (.getNext
                 (db-join-cursor :join-cursor-handle)
-                key-entry data-entry (opts :lock-mode))]
+                key-entry data-entry (*lock-modes* (opts :lock-mode)))]
     (unmarshal-db-entry* result key-entry data-entry)))
