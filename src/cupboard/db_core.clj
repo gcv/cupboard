@@ -374,9 +374,6 @@
       (.sync db-handle))))
 
 
-;; TODO: (defn db-preload [db & preload-conf-args] ...)
-
-
 (defn db-put
   "Optional keyword arguments:
      :no-dup-data  --- if true, then calls .putNoDupData
