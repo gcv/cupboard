@@ -95,6 +95,7 @@
   (let [defaults {:allow-create false
                   :read-only false
                   :transactional false
+                  :shared-cache false
                   :txn-timeout 0        ; in microseconds
                   :txn-no-sync false
                   :txn-write-no-sync false
@@ -105,6 +106,7 @@
                    (.setAllowCreate (conf :allow-create))
                    (.setReadOnly (conf :read-only))
                    (.setTransactional (conf :transactional))
+                   (.setSharedCache (conf :shared-cache))
                    (.setTxnTimeout (conf :txn-timeout))
                    (.setTxnNoSync (conf :txn-no-sync))
                    (.setTxnWriteNoSync (conf :txn-write-no-sync))
