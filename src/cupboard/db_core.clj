@@ -110,8 +110,12 @@
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
     (when (contains? conf-args :cache-percent)
       (.setCachePercent conf-obj (conf-args :cache-percent)))
-    (when (contains? conf-args :cache-size-bytes)
-      (.setCacheSize conf-obj (conf-args :cache-size-bytes)))
+    (when (contains? conf-args :cache-bytes)
+      (.setCacheSize conf-obj (conf-args :cache-bytes)))
+    (when (contains? conf-args :db-log-max-bytes) ; XXX: Does this work?
+      (.setConfigParam conf-args "LOG_FILE_MAX" (str (conf-args :db-log-max-bytes))))
+    (when (contains? conf-args :in-memory-only) ; XXX: Does this work?
+      (.setConfigParam conf-args "LOG_MEM_ONLY" (str (conf-args :in-memory-only))))
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
             dir
@@ -131,8 +135,8 @@
   (let [conf-obj (.getMutableConfig (db-env :env-handle))]
     (when (contains? opts-args :cache-percent)
       (.setCachePercent conf-obj (opts-args :cache-percent)))
-    (when (contains? opts-args :cache-size-bytes)
-      (.setCacheSize conf-obj (opts-args :cache-size-bytes)))
+    (when (contains? opts-args :cache-bytes)
+      (.setCacheSize conf-obj (opts-args :cache-bytes)))
     (when (contains? opts-args :txn-no-sync)
       (.setTxnNoSync conf-obj (opts-args :txn-no-sync)))
     (when (contains? opts-args :txn-write-no-sync)
@@ -167,8 +171,8 @@
   (let [opts (args-map opts)
         cpc (when-not (empty? opts) (CheckpointConfig.))]
     (when (opts :force) (.setForce cpc true))
-    (when (contains? opts :threshold-size) (.setKBytes (opts :threshold-size)))
-    (when (contains? opts :threshold-time) (.setMinutes (opts :threshold-time)))
+    (when (contains? opts :threshold-kbytes) (.setKBytes (opts :threshold-kbytes)))
+    (when (contains? opts :threshold-mins) (.setMinutes (opts :threshold-mins)))
     (when (opts :minimize-recovery-time) (.setMinimizeRecoveryTime true))
     (.checkpoint (db-env :env-handle) cpc)))
 
