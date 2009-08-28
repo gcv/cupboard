@@ -530,7 +530,6 @@
 (def-with-db-macro with-db-cursor db-cursor-open db-cursor-close)
 
 
-;; TODO: Write tests to check "both" search mode.
 (defn db-cursor-search
   "Optional keyword arguments:
      :search-both --- use Database.getSearchBoth functions

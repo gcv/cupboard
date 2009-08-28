@@ -143,7 +143,10 @@
     (is (= (db-put db "b" 2) OperationStatus/SUCCESS))
     (is (= (db-put db "a" 3) OperationStatus/SUCCESS))
     (is (= (db-put db "b" 2 :no-dup-data true) OperationStatus/KEYEXIST))
-    (is (= (db-put db "b" 4 :no-overwrite true) OperationStatus/KEYEXIST)))
+    (is (= (db-put db "b" 4 :no-overwrite true) OperationStatus/KEYEXIST))
+    (with-db-cursor [cur1 db]
+      (is (= (db-cursor-search cur1 "a" :data 3 :search-both true) ["a" 3]))
+      (is (= (db-cursor-search cur1 "a") ["a" 1]))))
   (db-env-remove-db *db-env* "db2"))
 
 
@@ -174,7 +177,8 @@
       (is (= (db-cursor-next cur1 :direction :forward) ["e" data1]))
       (is (= (db-cursor-current cur1) ["e" data1]))
       (is (= (db-cursor-first cur1) ["a" data1]))
-      (is (= (db-cursor-last cur1) ["e" data1])))))
+      (is (= (db-cursor-last cur1) ["e" data1]))
+      (is (= (db-cursor-search cur1 "a" :data data1 :search-both true) ["a" data1])))))
 
 
 (deftest indices
