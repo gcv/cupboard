@@ -108,6 +108,10 @@
                    (.setTxnNoSync (conf :txn-no-sync))
                    (.setTxnWriteNoSync (conf :txn-write-no-sync))
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
+    (when (contains? conf-args :cache-percent)
+      (.setCachePercent conf-obj (conf-args :cache-percent)))
+    (when (contains? conf-args :cache-size-bytes)
+      (.setCacheSize conf-obj (conf-args :cache-size-bytes)))
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
             dir
@@ -121,6 +125,19 @@
 
 
 (def-with-db-macro with-db-env db-env-open db-env-close)
+
+
+(defn db-env-modify [db-env & opts-args]
+  (let [conf-obj (.getMutableConfig (db-env :env-handle))]
+    (when (contains? opts-args :cache-percent)
+      (.setCachePercent conf-obj (opts-args :cache-percent)))
+    (when (contains? opts-args :cache-size-bytes)
+      (.setCacheSize conf-obj (opts-args :cache-size-bytes)))
+    (when (contains? opts-args :txn-no-sync)
+      (.setTxnNoSync conf-obj (opts-args :txn-no-sync)))
+    (when (contains? opts-args :txn-write-no-sync)
+      (.setTxnWriteNoSync conf-obj (opts-args :txn-write-no-sync)))
+    (.setMutableConfig (db-env :env-handle) conf-obj)))
 
 
 (defn db-env-sync [db-env]
@@ -156,7 +173,6 @@
     (.truncateDatabase (db-env :env-handle) (opts :txn) db-name (opts :count))))
 
 
-;; TODO: EnvironmentMutableConfig handling
 ;; TODO: Environment statistics gathering
 
 
