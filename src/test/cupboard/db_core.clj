@@ -53,7 +53,36 @@
     (is (= (db-count db) 2)))
   (is (= (db-env-truncate-db *db-env* "my-db" :count true) 2))
   (db-env-remove-db *db-env* "my-db")
-  (is (thrown? DatabaseException (db-open *db-env* "my-db" :allow-create false))))
+  (is (thrown? DatabaseException (db-open *db-env* "my-db" :allow-create false)))
+  ;; test statistics (doesn't check for validity, just makes sure the code runs)
+  (let [stats (db-env-stats *db-env*
+                            :n-cache-bytes true
+                            :n-cache-misses true
+                            :n-fsyncs true
+                            :n-random-reads true
+                            :n-random-writes true
+                            :n-seq-reads true
+                            :n-seq-writes true
+                            :n-total-log-bytes true
+                            :n-txn-active true
+                            :n-txn-begins true
+                            :n-txn-aborts true
+                            :n-txn-commits true
+                            :n-lock-owners true
+                            :n-read-locks true
+                            :n-total-locks true
+                            :n-lock-waiting-txns true
+                            :n-write-locks true
+                            :n-lock-requests true
+                            :n-lock-waits true)]
+    (is (every? identity (map #(contains? stats %)
+                              [:n-cache-bytes :n-cache-misses :n-fsyncs
+                               :n-random-reads :n-random-writes :n-seq-reads
+                               :n-seq-writes :n-total-log-bytes :n-txn-active
+                               :n-txn-begins :n-txn-aborts :n-txn-commits
+                               :n-lock-owners :n-read-locks :n-total-locks
+                               :n-lock-waiting-txns :n-write-locks :n-lock-requests
+                               :n-lock-waits])))))
 
 
 (deftest basics

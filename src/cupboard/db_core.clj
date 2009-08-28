@@ -1,7 +1,8 @@
 (ns cupboard.db-core
   (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
-  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CheckpointConfig]
+  (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode]
+           [com.sleepycat.je CheckpointConfig StatsConfig]
            [com.sleepycat.je Environment EnvironmentConfig]
            [com.sleepycat.je Transaction TransactionConfig]
            [com.sleepycat.je Database DatabaseConfig]
@@ -199,7 +200,79 @@
   (.compress (db-env :env-handle)))
 
 
-;; TODO: Environment statistics gathering
+(defn db-env-stats [db-env & conf-args]
+  (let [defaults {:reset-stats false
+                  ;; environment stats
+                  :n-cache-bytes false
+                  :n-cache-misses false
+                  :n-fsyncs false
+                  :n-random-reads false
+                  :n-random-writes false
+                  :n-seq-reads false
+                  :n-seq-writes false
+                  :n-total-log-bytes false
+                  ;; transaction stats
+                  :n-txn-active false
+                  :n-txn-begins false
+                  :n-txn-aborts false
+                  :n-txn-commits false
+                  ;; lock stats (slow mode!)
+                  :n-lock-owners false
+                  :n-read-locks false
+                  :n-total-locks false
+                  :n-lock-waiting-txns false
+                  :n-write-locks false
+                  ;; lock stats (fast mode)
+                  :n-lock-requests false
+                  :n-lock-waits false}
+        conf (merge defaults (args-map conf-args))
+        conf-obj (StatsConfig.)
+        env-stats [:n-cache-bytes :n-cache-misses :n-fsyncs :n-random-reads
+                   :n-random-writes :n-seq-reads :n-seq-writes :n-total-log-bytes]
+        txn-stats [:n-txn-active :n-txn-begins :n-txn-aborts :n-txn-commits]
+        lock-stats-slow [:n-lock-owners :n-read-locks :n-total-locks
+                         :n-lock-waiting-txns :n-write-locks]
+        lock-stats-fast [:n-lock-requests :n-lock-waits]
+        result (atom {})]
+    ;; enable fast statistics when possible
+    (.setFast conf-obj (any? identity (vals (select-keys conf lock-stats-slow))))
+    ;; reset statistics afterwards if requested
+    (.setClear conf-obj (conf :reset-stats))
+    ;; gather all requested statistics...
+    (letfn [(add-result [k f stat-obj]
+              (when (conf k) (swap! result assoc k (f stat-obj))))]
+      ;; gather environment statistics if any requested
+      (when (any? identity (vals (select-keys conf env-stats)))
+        (let [env-stat-obj (.getStats (db-env :env-handle) conf-obj)]
+          (add-result :n-cache-bytes #(.getCacheTotalBytes %) env-stat-obj)
+          (add-result :n-cache-misses #(.getNCacheMiss %) env-stat-obj)
+          (add-result :n-fsyncs #(.getNFSyncs %) env-stat-obj)
+          (add-result :n-random-reads #(.getNRandomReads %) env-stat-obj)
+          (add-result :n-random-writes #(.getNRandomWrites %) env-stat-obj)
+          (add-result :n-seq-reads #(.getNSequentialReads %) env-stat-obj)
+          (add-result :n-seq-writes #(.getNSequentialWrites %) env-stat-obj)
+          (add-result :n-total-log-bytes #(.getTotalLogSize %) env-stat-obj)))
+      ;; gather transaction statistics if any requested
+      (when (any? identity (vals (select-keys conf txn-stats)))
+        (let [txn-stat-obj (.getTransactionStats (db-env :env-handle) conf-obj)]
+          (add-result :n-txn-active #(.getNActive %) txn-stat-obj)
+          (add-result :n-txn-begins #(.getNBegins %) txn-stat-obj)
+          (add-result :n-txn-aborts #(.getNAborts %) txn-stat-obj)
+          (add-result :n-txn-commits #(.getNCommits %) txn-stat-obj)))
+      ;; gather lock statistics if any requested
+      (when (any? identity
+                  (vals (select-keys
+                         conf (concat lock-stats-slow lock-stats-fast))))
+        (let [lock-stat-obj (.getLockStats (db-env :env-handle) conf-obj)]
+          (add-result :n-lock-owners #(.getNOwners %) lock-stat-obj)
+          (add-result :n-read-locks #(.getNReadLocks %) lock-stat-obj)
+          (add-result :n-total-locks #(.getNTotalLocks %) lock-stat-obj)
+          (add-result :n-lock-waiting-txns #(.getNWaiters %) lock-stat-obj)
+          (add-result :n-write-locks #(.getNWriteLocks %) lock-stat-obj)
+          (add-result :n-lock-requests #(.getNRequests %) lock-stat-obj)
+          (add-result :n-lock-waits #(.getNWaits %) lock-stat-obj))))
+    ;; ...and return them
+    @result))
 
 
 

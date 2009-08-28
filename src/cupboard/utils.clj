@@ -80,6 +80,14 @@
   (filter-vec (complement f) v))
 
 
+(defn any? [pred coll]
+  (if (seq coll)
+      (if (pred (first coll))
+          true
+          (recur pred (next coll)))
+      false))
+
+
 
 ;; ----------------------------------------------------------------------
 ;; date handling routines
