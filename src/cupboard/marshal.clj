@@ -43,7 +43,8 @@
 (defmulti marshal-write (fn [tuple-output data] (clj-type data)))
 
 (defmacro def-marshal-write [java-type write-method]
-  `(defmethod marshal-write ~java-type [tuple-output# data#]
+  `(defmethod marshal-write ~java-type [#^TupleOutput tuple-output#
+                                        #^{:tag ~java-type} data#]
      (.writeUnsignedByte tuple-output# (*clj-type-codes* ~java-type))
      (when-not (nil? data#) (~write-method tuple-output# data#))))
 
@@ -51,25 +52,28 @@
 (def-marshal-write java.lang.Boolean .writeBoolean)
 (def-marshal-write java.lang.Boolean .writeBoolean)
 (def-marshal-write java.lang.Character
-  (fn [tuple-output data] (.writeChar tuple-output (int data))))
+  (fn [#^TupleOutput tuple-output #^java.lang.Character data]
+    (.writeChar tuple-output (int data))))
 (def-marshal-write java.lang.Byte .writeByte)
 (def-marshal-write java.lang.Short .writeShort)
 (def-marshal-write java.lang.Integer .writeInt)
 (def-marshal-write java.lang.Long .writeLong)
 (def-marshal-write java.math.BigInteger .writeBigInteger)
 (def-marshal-write clojure.lang.Ratio
-  (fn [tuple-output data]
+  (fn [#^TupleOutput tuple-output #^clojure.lang.Ratio data]
     (marshal-write tuple-output (.numerator data))
     (marshal-write tuple-output (.denominator data))))
 (def-marshal-write java.lang.Double .writeSortedDouble)
 (def-marshal-write java.lang.String .writeString)
 (def-marshal-write java.util.Date
-  (fn [tuple-output data]
+  (fn [#^TupleOutput tuple-output #^java.util.Date data]
     (.writeString tuple-output (date->iso8601 data :millis true))))
 (def-marshal-write clojure.lang.Keyword
-  (fn [tuple-output data] (.writeString tuple-output (subs (str data) 1))))
+  (fn [#^TupleOutput tuple-output #^clojure.lang.Keyword data]
+    (.writeString tuple-output (.substring (str data) 1))))
 (def-marshal-write clojure.lang.Symbol
-  (fn [tuple-output data] (.writeString tuple-output (str data))))
+  (fn [#^TupleOutput tuple-output #^clojure.lang.Symbol data]
+    (.writeString tuple-output (str data))))
 (letfn [(seq-write [tuple-output data]
           (marshal-write tuple-output (count data))
           (doseq [e data] (marshal-write tuple-output e)))]
@@ -107,12 +111,12 @@
 
 
 (defmulti unmarshal-read
-  (fn [tuple-input]
+  (fn [#^TupleInput tuple-input]
     (let [type-byte (.readUnsignedByte tuple-input)]
       (nth *clj-types* type-byte))))
 
 (defmacro def-unmarshal-read [java-type read-method]
-  `(defmethod unmarshal-read ~java-type [tuple-input#]
+  `(defmethod unmarshal-read ~java-type [#^TupleInput tuple-input#]
      (~read-method tuple-input#)))
 
 (def-unmarshal-read nil (fn [_] nil))
@@ -130,12 +134,12 @@
 (def-unmarshal-read java.lang.Double .readSortedDouble)
 (def-unmarshal-read java.lang.String .readString)
 (def-unmarshal-read java.util.Date
-  (fn [tuple-input] (iso8601->date (.readString tuple-input))))
+  (fn [#^TupleInput tuple-input] (iso8601->date (.readString tuple-input))))
 (def-unmarshal-read clojure.lang.Keyword
-  (fn [tuple-input] (keyword (.readString tuple-input))))
+  (fn [#^TupleInput tuple-input] (keyword (.readString tuple-input))))
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!
 (def-unmarshal-read clojure.lang.Symbol
-  (fn [tuple-input] (symbol (.readString tuple-input))))
+  (fn [#^TupleInput tuple-input] (symbol (.readString tuple-input))))
 ;; TODO: When available, use a transient data structure to put
 ;; together sequences in the loop (as is, it creates quite a bit of
 ;; garbage). Alternatively, maybe use a for form if it is more
@@ -160,7 +164,7 @@
                              (unmarshal-read tuple-input)
                              (unmarshal-read tuple-input))))))))
 
-(defn unmarshal-db-entry [db-entry]
+(defn unmarshal-db-entry [#^DatabaseEntry db-entry]
   (if (= 0 (.getSize db-entry))
       nil
       (let [tuple-input (TupleBinding/entryToInput db-entry)]
