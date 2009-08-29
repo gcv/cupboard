@@ -114,9 +114,9 @@
     (when (contains? conf-args :cache-bytes)
       (.setCacheSize conf-obj (conf-args :cache-bytes)))
     (when (contains? conf-args :db-log-max-bytes) ; XXX: Does this work?
-      (.setConfigParam conf-args "LOG_FILE_MAX" (str (conf-args :db-log-max-bytes))))
+      (.setConfigParam conf-obj "LOG_FILE_MAX" (str (conf-args :db-log-max-bytes))))
     (when (contains? conf-args :in-memory-only) ; XXX: Does this work?
-      (.setConfigParam conf-args "LOG_MEM_ONLY" (str (conf-args :in-memory-only))))
+      (.setConfigParam conf-obj "LOG_MEM_ONLY" (str (conf-args :in-memory-only))))
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
             dir
