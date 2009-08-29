@@ -165,7 +165,7 @@
               ;; shelf exists --- open it
               (let [[_ shelf-opts] shelf-desc
                     ;; Careful on merge here! Only use explicitly specified arguments!
-                    open-opts (merge (dissoc shelf-opts :indices) opts-args)
+                    open-opts (merge (dissoc shelf-opts :indices) (args-map opts-args))
                     shelf-db (db-open (cb :cupboard-env) shelf-name open-opts)
                     shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
                 ;; open shelf's indices

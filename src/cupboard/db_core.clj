@@ -1,9 +1,10 @@
 (ns cupboard.db-core
   (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
+  (:import [java.io File])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CacheMode]
            [com.sleepycat.je CheckpointConfig StatsConfig]
-           [com.sleepycat.je Environment EnvironmentConfig]
+           [com.sleepycat.je Environment EnvironmentConfig EnvironmentMutableConfig]
            [com.sleepycat.je Transaction TransactionConfig]
            [com.sleepycat.je Database DatabaseConfig]
            [com.sleepycat.je Cursor SecondaryCursor JoinCursor CursorConfig JoinConfig]
@@ -98,7 +99,7 @@
                   :txn-no-sync false
                   :txn-write-no-sync false
                   :txn-serializable-isolation false}
-        dir (file dir)
+        #^File dir (file dir)
         conf (merge defaults (args-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
                    (.setAllowCreate (conf :allow-create))
@@ -109,14 +110,14 @@
                    (.setTxnNoSync (conf :txn-no-sync))
                    (.setTxnWriteNoSync (conf :txn-write-no-sync))
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
-    (when (contains? conf-args :cache-percent)
-      (.setCachePercent conf-obj (conf-args :cache-percent)))
-    (when (contains? conf-args :cache-bytes)
-      (.setCacheSize conf-obj (conf-args :cache-bytes)))
-    (when (contains? conf-args :db-log-max-bytes) ; XXX: Does this work?
-      (.setConfigParam conf-obj "LOG_FILE_MAX" (str (conf-args :db-log-max-bytes))))
-    (when (contains? conf-args :in-memory-only) ; XXX: Does this work?
-      (.setConfigParam conf-obj "LOG_MEM_ONLY" (str (conf-args :in-memory-only))))
+    (when (contains? conf :cache-percent)
+      (.setCachePercent conf-obj (conf :cache-percent)))
+    (when (contains? conf :cache-bytes)
+      (.setCacheSize conf-obj (conf :cache-bytes)))
+    (when (contains? conf :db-log-max-bytes)
+      (.setConfigParam conf-obj EnvironmentConfig/LOG_FILE_MAX (str (conf :db-log-max-bytes))))
+    (when (contains? conf :in-memory-only)
+      (.setConfigParam conf-obj EnvironmentConfig/LOG_MEM_ONLY (str (conf :in-memory-only))))
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
             dir
@@ -125,57 +126,64 @@
 
 
 (defn db-env-close [db-env]
-  (.cleanLog (db-env :env-handle))
-  (.close (db-env :env-handle)))
+  (let [#^Environment env-handle (db-env :env-handle)]
+    (.cleanLog env-handle)
+    (.close env-handle)))
 
 
 (def-with-db-macro with-db-env db-env-open db-env-close)
 
 
 (defn db-env-modify [db-env & opts-args]
-  (let [conf-obj (.getMutableConfig (db-env :env-handle))]
-    (when (contains? opts-args :cache-percent)
-      (.setCachePercent conf-obj (opts-args :cache-percent)))
-    (when (contains? opts-args :cache-bytes)
-      (.setCacheSize conf-obj (opts-args :cache-bytes)))
-    (when (contains? opts-args :txn-no-sync)
-      (.setTxnNoSync conf-obj (opts-args :txn-no-sync)))
-    (when (contains? opts-args :txn-write-no-sync)
-      (.setTxnWriteNoSync conf-obj (opts-args :txn-write-no-sync)))
-    (.setMutableConfig (db-env :env-handle) conf-obj)))
+  (let [opts (args-map opts-args)
+        #^Environment env-handle (db-env :env-handle)
+        #^EnvironmentMutableConfig conf-obj (.getMutableConfig env-handle)]
+    (when (contains? opts :cache-percent)
+      (.setCachePercent conf-obj (opts :cache-percent)))
+    (when (contains? opts :cache-bytes)
+      (.setCacheSize conf-obj (opts :cache-bytes)))
+    (when (contains? opts :txn-no-sync)
+      (.setTxnNoSync conf-obj (opts :txn-no-sync)))
+    (when (contains? opts :txn-write-no-sync)
+      (.setTxnWriteNoSync conf-obj (opts :txn-write-no-sync)))
+    (.setMutableConfig env-handle conf-obj)))
 
 
 (defn db-env-remove-db [db-env db-name & opts-args]
   (let [defaults {:txn nil}
-        opts (merge defaults (args-map opts-args))]
-    (.removeDatabase (db-env :env-handle) (opts :txn) db-name)))
+        opts (merge defaults (args-map opts-args))
+        #^Environment env-handle (db-env :env-handle)]
+    (.removeDatabase env-handle (opts :txn) db-name)))
 
 
 (defn db-env-rename-db [db-env old-name new-name & opts-args]
   (let [defaults {:txn nil}
-        opts (merge defaults (args-map opts-args))]
-    (.renameDatabase (db-env :env-handle) (opts :txn) old-name new-name)))
+        opts (merge defaults (args-map opts-args))
+        #^Environment env-handle (db-env :env-handle)]
+    (.renameDatabase env-handle (opts :txn) old-name new-name)))
 
 
 (defn db-env-truncate-db [db-env db-name & opts-args]
   (let [defaults {:txn nil
                   :count false}
-        opts (merge defaults (args-map opts-args))]
-    (.truncateDatabase (db-env :env-handle) (opts :txn) db-name (opts :count))))
+        opts (merge defaults (args-map opts-args))
+        #^Environment env-handle (db-env :env-handle)]
+    (.truncateDatabase env-handle (opts :txn) db-name (opts :count))))
 
 
 (defn db-env-sync [db-env]
-  (.sync (db-env :env-handle)))
+  (.sync #^Environment (db-env :env-handle)))
 
 
 (defn db-env-checkpoint [db-env & opts]
   (let [opts (args-map opts)
-        cpc (when-not (empty? opts) (CheckpointConfig.))]
+        #^CheckpointConfig cpc (when-not (empty? opts) (CheckpointConfig.))
+        #^Environment env-handle (db-env :env-handle)]
     (when (opts :force) (.setForce cpc true))
-    (when (contains? opts :threshold-kbytes) (.setKBytes (opts :threshold-kbytes)))
-    (when (contains? opts :threshold-mins) (.setMinutes (opts :threshold-mins)))
-    (when (opts :minimize-recovery-time) (.setMinimizeRecoveryTime true))
-    (.checkpoint (db-env :env-handle) cpc)))
+    (when (contains? opts :threshold-kbytes) (.setKBytes cpc (opts :threshold-kbytes)))
+    (when (contains? opts :threshold-mins) (.setMinutes cpc (opts :threshold-mins)))
+    (when (opts :minimize-recovery-time) (.setMinimizeRecoveryTime cpc true))
+    (.checkpoint env-handle cpc)))
 
 
 (defn db-env-clean-log
@@ -183,21 +191,21 @@
   Normally done by background thread. Returns number of log files
   cleaned. May be called repeatedly until it returns 0."
   [db-env]
-  (.cleanLog (db-env :env-handle)))
+  (.cleanLog #^Environment (db-env :env-handle)))
 
 
 (defn db-env-evict-memory
   "Keeps memory usage within defined cache boundaries. Normally done
   by background thread."
   [db-env]
-  (.evictMemory (db-env :env-handle)))
+  (.evictMemory #^Environment (db-env :env-handle)))
 
 
 (defn db-env-compress
   "Compresses in-memory data structures after deletes. Normally done
   by background thread."
   [db-env]
-  (.compress (db-env :env-handle)))
+  (.compress #^Environment (db-env :env-handle)))
 
 
 (defn db-env-stats [db-env & conf-args]
@@ -226,7 +234,8 @@
                   :n-lock-requests false
                   :n-lock-waits false}
         conf (merge defaults (args-map conf-args))
-        conf-obj (StatsConfig.)
+        #^StatsConfig conf-obj (StatsConfig.)
+        #^Environment env-handle (db-env :env-handle)
         env-stats [:n-cache-bytes :n-cache-misses :n-fsyncs :n-random-reads
                    :n-random-writes :n-seq-reads :n-seq-writes :n-total-log-bytes]
         txn-stats [:n-txn-active :n-txn-begins :n-txn-aborts :n-txn-commits]
@@ -243,7 +252,7 @@
               (when (conf k) (swap! result assoc k (f stat-obj))))]
       ;; gather environment statistics if any requested
       (when (any? identity (vals (select-keys conf env-stats)))
-        (let [env-stat-obj (.getStats (db-env :env-handle) conf-obj)]
+        (let [#^EnvironmentStats env-stat-obj (.getStats env-handle conf-obj)]
           (add-result :n-cache-bytes #(.getCacheTotalBytes %) env-stat-obj)
           (add-result :n-cache-misses #(.getNCacheMiss %) env-stat-obj)
           (add-result :n-fsyncs #(.getNFSyncs %) env-stat-obj)
@@ -254,7 +263,7 @@
           (add-result :n-total-log-bytes #(.getTotalLogSize %) env-stat-obj)))
       ;; gather transaction statistics if any requested
       (when (any? identity (vals (select-keys conf txn-stats)))
-        (let [txn-stat-obj (.getTransactionStats (db-env :env-handle) conf-obj)]
+        (let [#^TransactionStats txn-stat-obj (.getTransactionStats env-handle conf-obj)]
           (add-result :n-txn-active #(.getNActive %) txn-stat-obj)
           (add-result :n-txn-begins #(.getNBegins %) txn-stat-obj)
           (add-result :n-txn-aborts #(.getNAborts %) txn-stat-obj)
@@ -263,7 +272,7 @@
       (when (any? identity
                   (vals (select-keys
                          conf (concat lock-stats-slow lock-stats-fast))))
-        (let [lock-stat-obj (.getLockStats (db-env :env-handle) conf-obj)]
+        (let [#^LockStats lock-stat-obj (.getLockStats env-handle conf-obj)]
           (add-result :n-lock-owners #(.getNOwners %) lock-stat-obj)
           (add-result :n-read-locks #(.getNReadLocks %) lock-stat-obj)
           (add-result :n-total-locks #(.getNTotalLocks %) lock-stat-obj)
@@ -282,20 +291,24 @@
 
 (defn db-txn-begin [db-env & conf-args]
   (let [defaults {:txn nil              ; parent transaction, if any
-                  :no-sync false
-                  :no-wait false
                   :isolation :repeatable-read}
         conf (merge defaults (args-map conf-args))
         conf-obj (let [co (TransactionConfig.)]
-                   (.setNoSync co (conf :no-sync))
-                   (.setNoWait co (conf :no-wait))
+                   (when (contains? conf :no-sync)
+                     (.setNoSync co (conf :no-sync)))
+                   (when (contains? conf :write-no-sync)
+                     (.setWriteNoSync co (conf :write-no-sync)))
+                   (when (contains? conf :no-wait)
+                     (.setNoWait co (conf :no-wait)))
                    (cond
                      (= (conf :isolation) :read-uncommitted) (.setReadUncommitted co true)
                      (= (conf :isolation) :read-committed) (.setReadCommitted co true)
-                     (= (conf :isolation) :serializable) (.setSerializableIsolation co true)))
+                     (= (conf :isolation) :serializable) (.setSerializableIsolation co true))
+                   co)
+        #^Environment env-handle (db-env :env-handle)
         txn (struct txn
                     (atom :open)
-                    (.beginTransaction (db-env :env-handle)
+                    (.beginTransaction env-handle
                                        (-> conf :txn :txn-handle)
                                        conf-obj))]
     txn))
@@ -304,11 +317,12 @@
 (defn db-txn-commit [txn & conf-args]
   (let [defaults {:no-sync false
                   :write-no-sync false}
-        conf (merge defaults (args-map conf-args))]
+        conf (merge defaults (args-map conf-args))
+        #^Transaction txn-handle (txn :txn-handle)]
     (try
-     (cond (conf :no-sync) (.commitNoSync (txn :txn-handle))
-           (conf :write-no-sync) (.commitWriteNoSync (txn :txn-handle))
-           :else (.commit (txn :txn-handle)))
+     (cond (conf :no-sync) (.commitNoSync txn-handle)
+           (conf :write-no-sync) (.commitWriteNoSync txn-handle)
+           :else (.commit txn-handle))
      (reset! (txn :status) :committed)
      (catch DatabaseException de
        (reset! (txn :status) de)
@@ -316,12 +330,13 @@
 
 
 (defn db-txn-abort [txn]
-  (try
-   (.abort (txn :txn-handle))
-   (reset! (txn :status) :aborted)
-   (catch DatabaseException de
-     (reset! (txn :status) de)
-     (throw de))))
+  (let [#^Transaction txn-handle (txn :txn-handle)]
+    (try
+     (.abort txn-handle)
+     (reset! (txn :status) :aborted)
+     (catch DatabaseException de
+       (reset! (txn :status) de)
+       (throw de)))))
 
 
 (def-with-db-macro with-db-txn db-txn-begin
@@ -352,24 +367,25 @@
                    (.setSortedDuplicates (conf :sorted-duplicates))
                    (.setExclusiveCreate (conf :exclusive-create))
                    (.setReadOnly (conf :read-only))
-                   (.setTransactional (conf :transactional)))]
+                   (.setTransactional (conf :transactional)))
+        #^Environment env-handle (db-env :env-handle)]
     (struct db
             name
             (conf :sorted-duplicates)
-            (.openDatabase (db-env :env-handle)
+            (.openDatabase env-handle
                            (-> conf :txn :txn-handle)
                            name conf-obj))))
 
 
 (defn db-close [db]
-  (.close (db :db-handle)))
+  (.close #^Database (db :db-handle)))
 
 
 (def-with-db-macro with-db db-open db-close)
 
 
 (defn db-sync [db]
-  (let [db-handle (db :db-handle)]
+  (let [#^Database db-handle (db :db-handle)]
     (when (.. db-handle getConfig getDeferredWrite)
       (.sync db-handle))))
 
@@ -382,14 +398,15 @@
   (let [defaults {:txn nil}
         opts (merge defaults (args-map opts-args))
         key-entry (marshal-db-entry key)
-        data-entry (marshal-db-entry data)]
-    (cond (opts :no-dup-data) (.putNoDupData (db :db-handle)
+        data-entry (marshal-db-entry data)
+        #^Database db-handle (db :db-handle)]
+    (cond (opts :no-dup-data) (.putNoDupData db-handle
                                              (-> opts :txn :txn-handle)
                                              key-entry data-entry)
-          (opts :no-overwrite) (.putNoOverwrite (db :db-handle)
+          (opts :no-overwrite) (.putNoOverwrite db-handle
                                                 (-> opts :txn :txn-handle)
                                                 key-entry data-entry)
-          :else (.put (db :db-handle)
+          :else (.put db-handle
                       (-> opts :txn :txn-handle) key-entry data-entry))))
 
 
@@ -405,11 +422,12 @@
         key-entry (marshal-db-entry key)
         data-entry (marshal-db-entry* opts :data)
         lock-mode (*lock-modes* (opts :lock-mode))
+        #^Database db-handle (db :db-handle)
         result (if (opts :search-both)
-                   (.getSearchBoth (db :db-handle)
+                   (.getSearchBoth db-handle
                                    (-> opts :txn :txn-handle)
                                    key-entry data-entry lock-mode)
-                   (.get (db :db-handle)
+                   (.get db-handle
                          (-> opts :txn :txn-handle)
                          key-entry data-entry lock-mode))]
     (unmarshal-db-entry* result key-entry data-entry)))
@@ -418,12 +436,13 @@
 (defn db-delete [db key & opts-args]
   (let [defaults {:txn nil}
         opts (merge defaults (args-map opts-args))
-        key-entry (marshal-db-entry key)]
-    (.delete (db :db-handle) (-> opts :txn :txn-handle) key-entry)))
+        key-entry (marshal-db-entry key)
+        #^Database db-handle (db :db-handle)]
+    (.delete db-handle (-> opts :txn :txn-handle) key-entry)))
 
 
 (defn db-count [db]
-  (.count (db :db-handle)))
+  (.count #^Database (db :db-handle)))
 
 
 
@@ -452,17 +471,19 @@
                    (.setAllowCreate (conf :allow-create))
                    (.setSortedDuplicates (conf :sorted-duplicates))
                    (.setAllowPopulate (conf :allow-populate))
-                   (.setTransactional (conf :transactional)))]
+                   (.setTransactional (conf :transactional)))
+        #^Environment env-handle (db-env :env-handle)
+        #^Database db-primary-handle (db-primary :db-handle)]
     (struct db
             name
             (conf :sorted-duplicates)
-            (.openSecondaryDatabase (db-env :env-handle)
+            (.openSecondaryDatabase env-handle
                                     (-> conf :txn :txn-handle)
-                                    name (db-primary :db-handle) conf-obj))))
+                                    name db-primary-handle conf-obj))))
 
 
 (defn db-sec-close [db-sec]
-  (.close (db-sec :db-handle)))
+  (.close #^SecondaryDatabase (db-sec :db-handle)))
 
 
 (def-with-db-macro with-db-sec db-sec-open db-sec-close)
@@ -479,7 +500,8 @@
         search-key-entry (marshal-db-entry search-key)
         key-entry (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
-        result (.get (db-sec :db-handle)
+        #^SecondaryDatabase db-sec-handle (db-sec :db-handle)
+        result (.get db-sec-handle
                      (-> opts :txn :txn-handle)
                      search-key-entry key-entry data-entry
                      (*lock-modes* (opts :lock-mode)))]
@@ -489,8 +511,9 @@
 (defn db-sec-delete [db-sec search-key & opts-args]
   (let [defaults {:txn nil}
         opts (merge defaults (args-map opts-args))
-        search-entry (marshal-db-entry search-key)]
-    (.delete (db-sec :db-handle) (-> opts :txn :txn-handle) search-entry)))
+        search-entry (marshal-db-entry search-key)
+        #^SecondaryDatabase db-sec-handle (db-sec :db-handle)]
+    (.delete db-sec-handle (-> opts :txn :txn-handle) search-entry)))
 
 
 
@@ -512,16 +535,16 @@
                      (= (conf :isolation) :read-committed) (.setReadCommitted co true)))]
     (struct db-cursor
             (if (db-primary? db)
-                (.openCursor (db :db-handle)
+                (.openCursor #^Database (db :db-handle)
                              (-> conf :txn :txn-handle)
                              conf-obj)
-                (.openSecondaryCursor (db :db-handle)
+                (.openSecondaryCursor #^SecondaryDatabase (db :db-handle)
                                       (-> conf :txn :txn-handle)
                                       conf-obj)))))
 
 
 (defn db-cursor-close [db-cursor]
-  (.close (db-cursor :cursor-handle)))
+  (.close #^Cursor (db-cursor :cursor-handle)))
 
 
 (def-with-db-macro with-db-cursor db-cursor-open db-cursor-close)
@@ -546,16 +569,16 @@
         data-entry (marshal-db-entry* opts :data)
         ;; search-fn1 is for primary database cursor lookups
         search-fn1 (cond
-                     (and search-both exact) #(.getSearchBoth %1 %2 %3 %4)
-                     search-both #(.getSearchBothRange %1 %2 %3 %4)
-                     exact #(.getSearchKey %1 %2 %3 %4)
-                     :else #(.getSearchKeyRange %1 %2 %3 %4))
+                     (and search-both exact) #(.getSearchBoth #^Cursor %1 %2 %3 %4)
+                     search-both #(.getSearchBothRange #^Cursor %1 %2 %3 %4)
+                     exact #(.getSearchKey #^Cursor %1 %2 %3 %4)
+                     :else #(.getSearchKeyRange #^Cursor %1 %2 %3 %4))
         ;; search-fn2 is for secondary database cursor lookups
         search-fn2 (cond
-                     (and search-both exact) #(.getSearchBoth %1 %2 %3 %4 %5)
-                     search-both #(.getSearchBothRange %1 %2 %3 %4 %5)
-                     exact #(.getSearchKey %1 %2 %3 %4 %5)
-                     :else #(.getSearchKeyRange %1 %2 %3 %4 %5))
+                     (and search-both exact) #(.getSearchBoth #^SecondaryCursor %1 %2 %3 %4 %5)
+                     search-both #(.getSearchBothRange #^SecondaryCursor %1 %2 %3 %4 %5)
+                     exact #(.getSearchKey #^SecondaryCursor %1 %2 %3 %4 %5)
+                     :else #(.getSearchKeyRange #^SecondaryCursor %1 %2 %3 %4 %5))
         result (if (db-cursor-primary? db-cursor)
                    (search-fn1 (db-cursor :cursor-handle)
                                key-entry data-entry lock-mode)
@@ -580,9 +603,9 @@
            data-entry# (marshal-db-entry* opts# :data)
            lock-mode# (*lock-modes* (opts# :lock-mode))
            result# (if (db-cursor-primary? db-cursor#)
-                       (~java-fn (db-cursor# :cursor-handle)
+                       (~java-fn #^Cursor (db-cursor# :cursor-handle)
                                  key-entry# data-entry# lock-mode#)
-                       (~java-fn (db-cursor# :cursor-handle)
+                       (~java-fn #^SecondaryCursor (db-cursor# :cursor-handle)
                                  key-entry# pkey-entry# data-entry# lock-mode#))]
        (unmarshal-db-entry* result#
                             (if (db-cursor-primary? db-cursor#) key-entry# pkey-entry#)
@@ -610,20 +633,22 @@
         lock-mode (*lock-modes* (opts :lock-mode))
         ;; next-fn1 is for primary database cursors
         next-fn1 (cond
-                   (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4)
-                   (and (= direction :back) skip-dups) #(.getPrevNoDup %1 %2 %3 %4)
-                   (= direction :forward) #(.getNext %1 %2 %3 %4)
-                   (= direction :back) #(.getPrev %1 %2 %3 %4))
+                   (and (= direction :forward) skip-dups) #(.getNextNoDup #^Cursor %1 %2 %3 %4)
+                   (and (= direction :back) skip-dups) #(.getPrevNoDup #^Cursor %1 %2 %3 %4)
+                   (= direction :forward) #(.getNext #^Cursor %1 %2 %3 %4)
+                   (= direction :back) #(.getPrev #^Cursor %1 %2 %3 %4))
         ;; next-fn2 is for secondary database cursors
         next-fn2 (cond
-                   (and (= direction :forward) skip-dups) #(.getNextNoDup %1 %2 %3 %4 %5)
-                   (and (= direction :back) skip-dups) #(.getPrevNoDup %1 %2 %3 %4 %5)
-                   (= direction :forward) #(.getNext %1 %2 %3 %4 %5)
-                   (= direction :back) #(.getPrev %1 %2 %3 %4 %5))
+                   (and (= direction :forward) skip-dups) #(.getNextNoDup
+                                                            #^SecondaryCursor %1 %2 %3 %4 %5)
+                   (and (= direction :back) skip-dups) #(.getPrevNoDup
+                                                         #^SecondaryCursor %1 %2 %3 %4 %5)
+                   (= direction :forward) #(.getNext #^SecondaryCursor %1 %2 %3 %4 %5)
+                   (= direction :back) #(.getPrev #^SecondaryCursor %1 %2 %3 %4 %5))
         result (if (db-cursor-primary? db-cursor)
-                   (next-fn1 (db-cursor :cursor-handle)
+                   (next-fn1 #^Cursor (db-cursor :cursor-handle)
                              key-entry data-entry lock-mode)
-                   (next-fn2 (db-cursor :cursor-handle)
+                   (next-fn2 #^SecondaryCursor (db-cursor :cursor-handle)
                              key-entry pkey-entry data-entry lock-mode))]
     (unmarshal-db-entry* result
                          (if (db-cursor-primary? db-cursor) key-entry pkey-entry)
@@ -666,7 +691,7 @@
         conf (merge defaults (args-map conf-args))
         conf-obj (doto (JoinConfig.)
                    (.setNoSort (conf :no-sort)))
-        pdb-obj (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
+        #^Database pdb-obj (.getPrimaryDatabase ((first db-cursors) :cursor-handle))]
     (struct db-join-cursor
             db-cursors
             (.join pdb-obj
@@ -675,7 +700,7 @@
 
 
 (defn db-join-cursor-close [db-join-cursor]
-  (.close (db-join-cursor :join-cursor-handle)))
+  (.close #^JoinCursor (db-join-cursor :join-cursor-handle)))
 
 
 (def-with-db-macro with-db-join-cursor db-join-cursor-open db-join-cursor-close)
@@ -687,6 +712,6 @@
         key-entry (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
         result (.getNext
-                (db-join-cursor :join-cursor-handle)
+                #^JoinCursor (db-join-cursor :join-cursor-handle)
                 key-entry data-entry (*lock-modes* (opts :lock-mode)))]
     (unmarshal-db-entry* result key-entry data-entry)))
