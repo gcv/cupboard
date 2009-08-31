@@ -188,22 +188,22 @@
 
 (defn db-env-clean-log
   "Cleans database log files and prepares them for disposal at next checkpoint.
-  Normally done by background thread. Returns number of log files
-  cleaned. May be called repeatedly until it returns 0."
+   Normally done by background thread. Returns number of log files
+   cleaned. May be called repeatedly until it returns 0."
   [db-env]
   (.cleanLog #^Environment (db-env :env-handle)))
 
 
 (defn db-env-evict-memory
   "Keeps memory usage within defined cache boundaries. Normally done
-  by background thread."
+   by background thread."
   [db-env]
   (.evictMemory #^Environment (db-env :env-handle)))
 
 
 (defn db-env-compress
   "Compresses in-memory data structures after deletes. Normally done
-  by background thread."
+   by background thread."
   [db-env]
   (.compress #^Environment (db-env :env-handle)))
 

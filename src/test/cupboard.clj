@@ -9,30 +9,10 @@
    (:first-name :index :any)
    (:last-name :index :any)
    (:age :index :any)
-   (:bank-acct :index :unique))
-  :primary-key :login
-  :shelf "presidents")
+   (:bank-acct :index :unique)))
 
 
-(cb/defpersist president-defaults
-  ((:login :index :unique)
-   (:first-name :index :any)
-   (:last-name :index :any)
-   (:age :index :any)
-   (:bank-acct :index :unique)
-   (:other)))
-
-
-(cb/defpersist president-bad-struct
-  ((:login)
-   (:first-name)
-   (:last-name)
-   (:age)
-   (:bank-acct)
-   (:other)))
-
-
-(deftest persistent-structures-1
+(deftest persistent-structures
   (let [p1 (cb/make-instance president :save false "gw" "George" "Washington" 57)
         p2 (cb/make-instance president :save false "ja" "John" "Adams" 62)
         p3 (cb/make-instance president :save false "tj" "Thomas" "Jefferson" 58)
@@ -41,38 +21,8 @@
     (is (= (p2 :first-name) "John"))
     (is (= (p3 :age) 58))
     (is (nil? (p4 :bank-acct)))
-    (is (= ((meta p1) :primary-key) :login))
-    (is (= ((meta p2) :shelf) "presidents"))
-    (is (= ((meta p2) :index-uniques) [:bank-acct]))
-    (is (= ((meta p2) :index-anys) [:first-name :last-name :age]))))
-
-
-(deftest persistent-structures-2
-  (let [p1 (cb/make-instance president-defaults :save false "gw" "George" "Washington" 57)
-        p2 (cb/make-instance president-defaults :save false "ja" "John" "Adams" 62)
-        p3 (cb/make-instance president-defaults :save false "tj" "Thomas" "Jefferson" 58)
-        p4 (cb/make-instance president-defaults :save false "jm" "James" "Madison" 58)]
-    (is (= (p1 :login) "gw"))
-    (is (= (p2 :first-name) "John"))
-    (is (= (p3 :age) 58))
-    (is (nil? (p4 :bank-acct)))
-    (is (= ((meta p1) :primary-key) :login))
-    (is (= ((meta p2) :index-uniques) [:bank-acct]))
-    (is (= ((meta p2) :index-anys) [:first-name :last-name :age]))))
-
-
-(deftest persistent-structures-3
-  (let [p1 (cb/make-instance president-bad-struct :save false "gw" "George" "Washington" 57)
-        p2 (cb/make-instance president-bad-struct :save false "ja" "John" "Adams" 62)
-        p3 (cb/make-instance president-bad-struct :save false "tj" "Thomas" "Jefferson" 58)
-        p4 (cb/make-instance president-bad-struct :save false "jm" "James" "Madison" 58)]
-    (is (= (p1 :login) "gw"))
-    (is (= (p2 :first-name) "John"))
-    (is (= (p3 :age) 58))
-    (is (nil? (p4 :bank-acct)))
-    (is (nil? ((meta p1) :primary-key)))
-    (is (empty? ((meta p2) :index-uniques)))
-    (is (empty? ((meta p2) :index-anys)))))
+    (is (= ((meta p2) :index-uniques) #{:login :bank-acct}))
+    (is (= ((meta p2) :index-anys) #{:first-name :last-name :age}))))
 
 
 (deftest basics
@@ -113,6 +63,10 @@
 
 
 ;;; TODO: Write a test for shelf functionality.
+
+
+;;; TODO: Write a test making sure that cupboards and databases open
+;;; appropriately.
 
 
 ;; (deftest demo

@@ -1,5 +1,6 @@
 (ns cupboard
-  (:use [clojure.contrib java-utils])
+  (:use [clojure set])
+  (:use [clojure.contrib str-utils java-utils])
   (:use [cupboard utils db-core])
   (:import [com.sleepycat.je DatabaseException]))
 
@@ -46,6 +47,8 @@
 (defstruct* shelf
   :db
   :name
+  ;; Keep index types separate; this simplifies retrieval code since
+  ;; :unique and :any indices require different treatment.
   :index-unique-dbs
   :index-any-dbs)
 
@@ -71,141 +74,95 @@
 ;;; cupboard maintenance
 ;;; ----------------------------------------------------------------------
 
-(defn- get-index [cb shelf index-slot & opts-args]
-  (let [defaults {:key-creator-fn index-slot
-                  :allow-create true
-                  :allow-populate true
-                  :transactional true}
-        opts (merge defaults (args-map opts-args))
-        index-dbs (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
-    (if (contains? index-dbs index-slot)
-        ;; verify and return
-        (let [index-db (index-dbs index-slot)]
-          ;; TODO: Handle this error better than with just an assert.
-          (when (contains? opts :sorted-duplicates)
-            (assert (= (index-db :sorted-duplicates) (opts :sorted-duplicates))))
-          index-db)
-        ;; not open yet: open and return
-        (let [[_ shelf-info] (db-get (cb :shelves-db) (shelf :name))
-              indices (shelf-info :indices)
-              index-exists (contains? indices index-slot)
-              index-opts (if index-exists
-                             (merge (indices index-slot) opts)
-                             (do (assert (contains? opts :sorted-duplicates))
-                                 opts))
-              index-db (db-sec-open (cb :cupboard-env)
-                                    (shelf :db) (str index-slot) index-opts)]
-          ;; record index in shelf data structure
-          (let [index-db-type (if (index-opts :sorted-duplicates)
-                                  :index-any-dbs
-                                  :index-unique-dbs)]
-            (swap! (shelf index-db-type) assoc index-slot index-db))
-          ;; record index in (cb :shelves-db) if necessary
-          (when-not index-exists
-            (db-put (cb :shelves-db) (shelf :name)
-                    (assoc shelf-info :indices (merge indices {index-slot index-opts}))))
+(defn- close-shelves
+  "The shelves parameter is an (atom {shelf-name shelf-data}). Closes
+   all of a given shelf's index secondary databases, then closes the
+   shelf's primary database."
+  [shelves]
+  (doseq [shelf-name (keys @shelves)]
+    (let [shelf (@shelves shelf-name)]
+      ;; close indices
+      (doseq [index-type [:index-unique-dbs :index-any-dbs]]
+        (doseq [index-name (keys @(shelf index-type))]
+          (db-sec-close (@(shelf index-type) index-name))
+          (swap! (shelf index-type) dissoc index-name)))
+      (db-close (shelf :db))
+      (swap! shelves dissoc shelf-name))))
+
+
+(defn- get-index [cb shelf index-name & opts-args]
+  (let [opts (args-map opts-args)
+        index-db-name (str (shelf :name) index-name)
+        all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
+    (if (contains? all-indices index-name)
+        ;; index already open, just return it
+        (all-indices index-name)
+        ;; else, need to open the index
+        (let [[_ stored-index-opts] (db-get @(cb :shelves-db) index-db-name)
+              index-opts (merge stored-index-opts
+                                (select-keys opts [:sorted-duplicates]))
+              index-open-opts (merge index-opts {:allow-create true
+                                                 :key-creator-fn index-name})
+              index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
+                                    index-db-name index-open-opts)]
+          (db-put @(cb :shelves-db) index-db-name index-opts)
+          (swap! (shelf (if (.. (index-db :db-handle) getConfig getSortedDuplicates)
+                            :index-any-dbs
+                            :index-unique-dbs))
+                 assoc index-name index-db)
           index-db))))
 
 
-(defn- close-shelf
-  "The two-parameter form of close-shelf closes shelves and removes
-  them from the cupboard object (cb argument). It does not remove the
-  shelf from the cupboard on disk. The one-parameter form just closes
-  the given shelf, without doing any extra cleanup."
-  ([shelf]
-     (doseq [index-db (vals (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs)))]
-       (db-sec-close index-db))
-     (db-close (shelf :db)))
-  ([cb shelf-name]
-     (close-shelf (@(cb :shelves) shelf-name))
-     (swap! (cb :shelves) dissoc shelf-name)))
-
-
-(defn- close-shelves
-  "If arg is a cupboard instance, this closes all cupboard shelves and
-  removes them from the :shelves table in the cupboard. If arg is just
-  a table of shelves, it simply closes them."
-  [arg]
-  (if (is-cupboard? arg)
-      (doseq [shelf-name (keys @(arg :shelves))]
-        (close-shelf arg shelf-name))
-      ;; this is for use from the init-cupboard error recovery block
-      (doseq [shelf (vals arg)]
-        (close-shelf shelf))))
+(defn- open-indices [cb shelf]
+  (let [shelf-name (shelf :name)]
+    (doseq [db-name (.getDatabaseNames (@(cb :cupboard-env) :env-handle))]
+      (let [[found-shelf-name index-name] (re-split #":" db-name)]
+        (when (and (not (nil? index-name)) (= shelf-name found-shelf-name))
+          (get-index cb shelf (keyword index-name)))))))
 
 
 (defn- get-shelf
   "Returns the shelf identified by shelf-name from the cupboard
-  identified by cb. If the shelf is not open, open and return it. If
-  the shelf does not exist, then create, open, and return it."
+   identified by cb. If the shelf is not open, open and return it. If
+   the shelf does not exist, then create, open, and return it."
   [cb shelf-name & opts-args]
-  (let [defaults {:force-reopen false
-                  :deferred-write false
-                  :read-only false
-                  :transactional true}
+  (let [defaults {:read-only false}
         opts (merge defaults (args-map opts-args))]
     (when (opts :force-reopen)
-      (close-shelf cb shelf-name))
+      ;; TODO: Write me.
+      )
     (if (contains? @(cb :shelves) shelf-name)
         ;; shelf is ready and open, just return it
         (@(cb :shelves) shelf-name)
-        ;; no shelf found in cupboard, need to either open or create it
-        (let [shelf-desc (db-get (cb :shelves-db) shelf-name)]
-          (if (empty? shelf-desc)
-              ;; shelf does not exist --- create a new one
-              (let [new-shelf-opts {:deferred-write (opts :deferred-write)
-                                    :sorted-duplicates false
-                                    :read-only (opts :read-only)
-                                    :transactional (opts :transactional)}
-                    new-shelf-db (db-open (cb :cupboard-env) shelf-name
-                                          (assoc new-shelf-opts :allow-create true))
-                    new-shelf (struct shelf new-shelf-db shelf-name (atom {}) (atom {}))]
-                (swap! (cb :shelves) assoc shelf-name new-shelf)
-                new-shelf)
-              ;; shelf exists --- open it
-              (let [[_ shelf-opts] shelf-desc
-                    ;; Careful on merge here! Only use explicitly specified arguments!
-                    open-opts (merge (dissoc shelf-opts :indices) (args-map opts-args))
-                    shelf-db (db-open (cb :cupboard-env) shelf-name open-opts)
-                    shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
-                ;; open shelf's indices
-                (doseq [[index-slot index-opts] (shelf-opts :indices)]
-                  (let [index-db (db-sec-open
-                                  (cb :cupboard-env) (shelf :db) (str index-slot)
-                                  :key-creator-fn index-slot
-                                  :allow-create true
-                                  :sorted-duplicates (index-opts :sorted-duplicates)
-                                  :allow-populate true
-                                  :transactional true)
-                        index-db-type (if (index-opts :sorted-duplicates)
-                                          :index-any-dbs
-                                          :index-unique-dbs)]
-                    (swap! (shelf index-db-type) assoc index-slot index-db)))
-                ;; save the shelf in the cupboard
-                (swap! (cb :shelves) assoc shelf-name shelf)
-                ;; return the shelf
-                shelf))))))
+        ;; else, need to open or create the shelf
+        (let [[_ stored-shelf-opts] (db-get @(cb :shelves-db) shelf-name)
+              shelf-opts (merge stored-shelf-opts (select-keys opts [])) ; fill this in as needed
+              open-shelf-opts (merge shelf-opts
+                                     (select-keys opts [:read-only])
+                                     {:allow-create true
+                                      :sorted-duplicates false})
+              shelf-db (db-open @(cb :cupboard-env) shelf-name open-shelf-opts)
+              shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
+          (db-put @(cb :shelves-db) shelf-name shelf-opts)
+          (swap! (cb :shelves) assoc shelf-name shelf)
+          (open-indices cb shelf)
+          shelf))))
 
 
 (defn- init-cupboard [cb-env cb-env-new]
-  (let [shelves-db (db-open cb-env *shelves-db-name* :allow-create cb-env-new :transactional true)
-        shelves (atom {})
-        cb (struct cupboard cb-env shelves-db shelves)]
+  (let [shelves-db (db-open cb-env *shelves-db-name*
+                            :allow-create cb-env-new :transactional true
+                            :sorted-duplicates false)
+        cb (struct cupboard (atom cb-env) (atom shelves-db) (atom {}))]
     (try
+     ;; open the default shelf explicitly in a new cupboard
      (when cb-env-new
-       (with-db [default-shelf-db cb-env *default-shelf-name*
-                 :allow-create true :transactional true]
-         (db-put shelves-db *default-shelf-name*
-                 {:deferred-write false :sorted-duplicates false
-                  :read-only false :transactional true
-                  :indices {}})))
-     ;; load metadata about all shelves
-     (with-db-cursor [shelf-cursor shelves-db]
-       (loop [shelf-entry (db-cursor-first shelf-cursor)]
-         (when-not (empty? shelf-entry)
-           (let [[shelf-name _] shelf-entry]
-             (get-shelf cb shelf-name)
-             (recur (db-cursor-next shelf-cursor))))))
+       (get-shelf cb *default-shelf-name*))
+     ;; open all shelves in the environment
+     (doseq [db-name (.getDatabaseNames (cb-env :env-handle))]
+       (when-not (or (.contains db-name ":") ; exclude indices
+                     (= db-name *shelves-db-name*))
+         (get-shelf cb db-name)))
      ;; return the cupboard
      cb
      ;; catch block must close all open databases
@@ -215,7 +172,7 @@
         (throw e)
         (finally
          (db-close shelves-db)
-         (close-shelves @shelves)))))))
+         (close-shelves (cb :shelves))))))))
 
 
 (defn open-cupboard [cb-dir-arg]
@@ -234,14 +191,15 @@
          (try
           (throw e)
           (finally
-           ;; TODO: Close everything else, too.
            (db-env-close cb-env))))))))
 
 
 (defn close-cupboard [cb]
-  (close-shelves cb)
-  (db-close (cb :shelves-db))
-  (db-env-close (cb :cupboard-env)))
+  (close-shelves (cb :shelves))
+  (db-close @(cb :shelves-db))
+  (reset! (cb :shelves-db) nil)
+  (db-env-close @(cb :cupboard-env))
+  (reset! (cb :cupboard-env) nil))
 
 
 (defmacro with-open-cupboard [[& args] & body]
@@ -270,11 +228,12 @@
   ;; Do not use maps because the result should must have the same
   ;; order as the input slot-names and slot-attrs parallel arrays.
   (let [csa (count slot-attrs)]
-    (loop [res [] i 0]
+    (loop [res #{} i 0]
       (if (= i csa)
           res
           (do (let [sa (nth slot-attrs i)]
-                (if (and (contains? sa target-key) (= (sa target-key) target-value))
+                (if (and (contains? sa target-key)
+                         (= (sa target-key) target-value))
                     (recur (conj res (nth slot-names i)) (inc i))
                     (recur res (inc i)))))))))
 
@@ -288,14 +247,7 @@
         slot-map (zipmap slot-names slot-attrs)
         idx-uniques (filter-slots slot-names slot-attrs :index :unique)
         idx-anys (filter-slots slot-names slot-attrs :index :any)
-        opts (args-map opts-args)
-        pkey (if (contains? opts :primary-key)
-                 (opts :primary-key)
-                 (first idx-uniques))
-        pmeta (struct-map persistence-metadata
-                :primary-key pkey
-                :index-uniques (remove-vec #(= pkey %) idx-uniques)
-                :index-anys idx-anys)]
+        opts (args-map opts-args)]
     `(do (defstruct ~name ~@slot-names)
          (defmethod make-instance ~name [& instance-args#]
            (let [[struct-args#
@@ -304,7 +256,10 @@
                  save-instance# (or (not (contains? instance-kw-args# :save))
                                     (instance-kw-args# :save))
                  inst-kw-save-args# (select-keys instance-kw-args# [:txn])
-                 inst-meta# (merge ~pmeta ~opts inst-kw-meta-args#)
+                 inst-meta-base# (struct persistence-metadata
+                                   (java.util.UUID/randomUUID)
+                                   ~idx-uniques ~idx-anys)
+                 inst-meta# (merge ~opts inst-kw-meta-args# inst-meta-base#)
                  inst# (with-meta (apply struct struct-args#) inst-meta#)]
              (when save-instance#
                (save inst# inst-kw-save-args#))
@@ -334,8 +289,8 @@
       (get-index cb shelf unique-index :sorted-duplicates false))
     (doseq [any-index (pmeta :index-anys)]
       (get-index cb shelf any-index :sorted-duplicates true))
-    ;; Write object! Note the primary key form: [key-slot-name key-value]
-    (db-put (shelf :db) [pkey (obj pkey)] obj)))
+    ;; Write object!
+    (db-put (shelf :db) pkey obj)))
 
 
 (defn retrieve [index-slot indexed-value & opts-args]
@@ -347,19 +302,17 @@
         shelf (get-shelf cb (opts :shelf-name))
         index-unique-dbs @(shelf :index-unique-dbs)
         index-any-dbs @(shelf :index-any-dbs)]
-    (letfn [(res->data [res]
-              (if (empty? res)
-                  nil
-                  (let [[pkey-key
-                         pkey-value] (first res)
-                         data (assoc (second res) pkey-key pkey-value)
-                         metadata {:primary-key pkey-key
-                                   :index-uniques (keys index-unique-dbs)
-                                   :index-anys (keys index-any-dbs)}]
-                    (with-meta data metadata))))]
+    (letfn [(res->data [[pkey value]]
+              (when-not (nil? value)
+                (let [value-key-set (set (keys value))
+                      metadata {:primary-key pkey
+                                :index-uniques (intersection (set (keys index-unique-dbs))
+                                                             value-key-set)
+                                :index-anys (intersection (set (keys index-any-dbs))
+                                                          value-key-set)}]
+                  (with-meta value metadata))))]
       ;; If the index-slot is in :index-uniques, retrieve it and return as is.
       ;; If the index-slot is in :index-anys, retrieve a lazy sequence.
-      ;; If neither, attempt to retrieve by primary key [index-slot indexed-value].
       (cond
         ;; uniques
         (contains? index-unique-dbs index-slot)
@@ -371,8 +324,7 @@
           (letfn [(idx-scan [cursor-fn & cursor-fn-args]
                     (try
                      (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]
-                       (if (or (empty? res)
-                               (not (= ((second res) index-slot) indexed-value)))
+                       (if (or (empty? res) (not (= (res index-slot) indexed-value)))
                            (do (db-cursor-close idx-cursor)
                                (lazy-seq))
                            (lazy-seq (cons (res->data res) (idx-scan db-cursor-next)))))
@@ -381,10 +333,10 @@
                        (db-cursor-close idx-cursor)
                        (throw de))))]
             (idx-scan db-cursor-search indexed-value)))
-        ;; primary key
-        :else
-        (let [res (db-get (shelf :db) [index-slot indexed-value])]
-          (res->data res))))))
+        ;; not retrieving an indexed slot
+        :else (throw (RuntimeException. (str "attempting retrieve by slot "
+                                             index-slot ", not indexed on shelf "
+                                             (shelf :name))))))))
 
 
 ;;; TODO: (defn delete ...)

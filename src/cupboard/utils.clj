@@ -61,25 +61,6 @@
            false))))
 
 
-(defn filter-vec
-  "Like clojure.core/filter, but returns an (eager) vector."
-  [f v]
-  (let [len-v (count v)]
-    (loop [new-v [] i 0]
-      (if (>= i len-v)
-          new-v
-          (let [elt (nth v i)]
-            (recur (if (f elt)
-                       (conj new-v elt)
-                       new-v)
-                   (inc i)))))))
-
-
-(defn remove-vec [f v]
-  "Like clojure.core/remove, but returns an (eager) vector."
-  (filter-vec (complement f) v))
-
-
 (defn any? [pred coll]
   (if (seq coll)
       (if (pred (first coll))
