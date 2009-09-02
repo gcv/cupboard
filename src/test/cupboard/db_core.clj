@@ -96,7 +96,8 @@
 
 
 (deftest types
-  (let [now (java.util.Date.)]
+  (let [now (java.util.Date.)
+        uuid (java.util.UUID/randomUUID)]
     (db-put *db* "nil" nil)
     (db-put *db* "boolean" true)
     (db-put *db* "char" \c)
@@ -109,6 +110,7 @@
     (db-put *db* "double" 1.0)
     (db-put *db* "string" "hello world")
     (db-put *db* "date" now)
+    (db-put *db* "uuid" uuid)
     (db-put *db* "keyword" :one)
     (db-put *db* "symbol" 'one)
     (db-put *db* "list" (list 1 2 3))
@@ -127,6 +129,7 @@
     (is (= (db-get *db* "double") ["double" 1.0]))
     (is (= (db-get *db* "string") ["string" "hello world"]))
     (is (= (db-get *db* "date") ["date" now]))
+    (is (= (db-get *db* "uuid") ["uuid" uuid]))
     (is (= (db-get *db* "keyword") ["keyword" :one]))
     (is (= (db-get *db* "symbol") ["symbol" 'one]))
     (is (= (db-get *db* "list") ["list" (list 1 2 3)]))

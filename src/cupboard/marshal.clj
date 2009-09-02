@@ -21,6 +21,7 @@
                   java.lang.Double
                   java.lang.String
                   java.util.Date
+                  java.util.UUID
                   clojure.lang.Keyword
                   clojure.lang.Symbol
                   :list
@@ -68,6 +69,10 @@
 (def-marshal-write java.util.Date
   (fn [#^TupleOutput tuple-output #^java.util.Date data]
     (.writeString tuple-output (date->iso8601 data :millis true))))
+(def-marshal-write java.util.UUID
+  (fn [#^TupleOutput tuple-output #^java.util.UUID uuid]
+    (.writeLong tuple-output (.getMostSignificantBits uuid))
+    (.writeLong tuple-output (.getLeastSignificantBits uuid))))
 (def-marshal-write clojure.lang.Keyword
   (fn [#^TupleOutput tuple-output #^clojure.lang.Keyword data]
     (.writeString tuple-output (.substring (str data) 1))))
@@ -135,6 +140,10 @@
 (def-unmarshal-read java.lang.String .readString)
 (def-unmarshal-read java.util.Date
   (fn [#^TupleInput tuple-input] (iso8601->date (.readString tuple-input))))
+(def-unmarshal-read java.util.UUID
+  (fn [#^TupleInput tuple-input] (java.util.UUID.
+                                  (.readLong tuple-input)
+                                  (.readLong tuple-input))))
 (def-unmarshal-read clojure.lang.Keyword
   (fn [#^TupleInput tuple-input] (keyword (.readString tuple-input))))
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!

@@ -17,6 +17,7 @@
         tdouble  1.0
         tstring  "hello world"
         tdate    (java.util.Date.)
+        tuuid    (java.util.UUID/randomUUID)
         tkeyword :one
         tsymbol  'one
         tlist    (list 1 2 3)
@@ -35,6 +36,7 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tdouble)) tdouble))
     (is (= (unmarshal-db-entry (marshal-db-entry tstring)) tstring))
     (is (= (unmarshal-db-entry (marshal-db-entry tdate)) tdate))
+    (is (= (unmarshal-db-entry (marshal-db-entry tuuid)) tuuid))
     (is (= (unmarshal-db-entry (marshal-db-entry tkeyword)) tkeyword))
     (is (= (unmarshal-db-entry (marshal-db-entry tsymbol)) tsymbol))
     (is (= (unmarshal-db-entry (marshal-db-entry tlist)) tlist))
