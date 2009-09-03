@@ -66,6 +66,7 @@
 ;;; keep Clojure's compile-time symbol resolution happy
 ;;; ----------------------------------------------------------------------
 
+(declare list-shelves)
 (declare save)
 
 
@@ -74,20 +75,22 @@
 ;;; cupboard maintenance
 ;;; ----------------------------------------------------------------------
 
-(defn- close-shelves
-  "The shelves parameter is an (atom {shelf-name shelf-data}). Closes
-   all of a given shelf's index secondary databases, then closes the
-   shelf's primary database."
-  [shelves]
-  (doseq [shelf-name (keys @shelves)]
-    (let [shelf (@shelves shelf-name)]
-      ;; close indices
-      (doseq [index-type [:index-unique-dbs :index-any-dbs]]
-        (doseq [index-name (keys @(shelf index-type))]
-          (db-sec-close (@(shelf index-type) index-name))
-          (swap! (shelf index-type) dissoc index-name)))
-      (db-close (shelf :db))
-      (swap! shelves dissoc shelf-name))))
+(defn- close-shelf [cb shelf-name]
+  (let [shelves (cb :shelves)
+        shelf (@shelves shelf-name)]
+    ;; close and dissociate index secondary databases
+    (doseq [index-type [:index-unique-dbs :index-any-dbs]]
+      (doseq [index-name (keys @(shelf index-type))]
+        (db-sec-close (@(shelf index-type) index-name))
+        (swap! (shelf index-type) dissoc index-name)))
+    ;; close and dissociate the shelf primary database
+    (db-close (shelf :db))
+    (swap! shelves dissoc shelf-name)))
+
+
+(defn- close-shelves [cb]
+  (doseq [shelf-name (keys @(cb :shelves))]
+    (close-shelf cb shelf-name)))
 
 
 (defn- get-index [cb shelf index-name & opts-args]
@@ -129,8 +132,7 @@
   (let [defaults {:read-only false}
         opts (merge defaults (args-map opts-args))]
     (when (opts :force-reopen)
-      ;; TODO: Write me.
-      )
+      (close-shelf cb shelf-name))
     (if (contains? @(cb :shelves) shelf-name)
         ;; shelf is ready and open, just return it
         (@(cb :shelves) shelf-name)
@@ -147,11 +149,6 @@
           (swap! (cb :shelves) assoc shelf-name shelf)
           (open-indices cb shelf)
           shelf))))
-
-
-(defn list-shelves [cb]
-  (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
-          (.getDatabaseNames (@(cb :cupboard-env) :env-handle))))
 
 
 (defn- init-cupboard [cb-env cb-env-new]
@@ -175,7 +172,7 @@
         (throw e)
         (finally
          (db-close shelves-db)
-         (close-shelves (cb :shelves))))))))
+         (close-shelves cb)))))))
 
 
 (defn open-cupboard [cb-dir-arg]
@@ -198,7 +195,7 @@
 
 
 (defn close-cupboard [cb]
-  (close-shelves (cb :shelves))
+  (close-shelves cb)
   (db-close @(cb :shelves-db))
   (reset! (cb :shelves-db) nil)
   (db-env-close @(cb :cupboard-env))
@@ -218,7 +215,11 @@
          (finally (close-cupboard ~cb-var))))))
 
 
-;;; TODO: (defn remove-shelf ...)
+
+
+(defn list-shelves [cb]
+  (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
+          (.getDatabaseNames (@(cb :cupboard-env) :env-handle))))
 
 
 
