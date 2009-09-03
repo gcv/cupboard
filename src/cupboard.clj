@@ -2,7 +2,7 @@
   (:use [clojure set])
   (:use [clojure.contrib str-utils java-utils])
   (:use [cupboard utils db-core])
-  (:import [com.sleepycat.je DatabaseException]))
+  (:import [com.sleepycat.je OperationStatus DatabaseException]))
 
 
 
@@ -75,17 +75,27 @@
 ;;; cupboard maintenance
 ;;; ----------------------------------------------------------------------
 
-(defn- close-shelf [cb shelf-name]
-  (let [shelves (cb :shelves)
+(defn- close-shelf [cb shelf-name & opts-args]
+  (let [defaults {:remove false}
+        opts (merge defaults (args-map opts-args))
+        shelves (cb :shelves)
         shelf (@shelves shelf-name)]
     ;; close and dissociate index secondary databases
     (doseq [index-type [:index-unique-dbs :index-any-dbs]]
       (doseq [index-name (keys @(shelf index-type))]
-        (db-sec-close (@(shelf index-type) index-name))
-        (swap! (shelf index-type) dissoc index-name)))
+        (let [index-db (@(shelf index-type) index-name)
+              index-db-name (index-db :name)]
+          (db-sec-close index-db)
+          (swap! (shelf index-type) dissoc index-name)
+          (when (opts :remove)
+            (db-env-remove-db @(cb :cupboard-env) index-db-name)
+            (db-delete @(cb :shelves-db) index-db-name)))))
     ;; close and dissociate the shelf primary database
     (db-close (shelf :db))
-    (swap! shelves dissoc shelf-name)))
+    (swap! shelves dissoc shelf-name)
+    (when (opts :remove)
+      (db-env-remove-db @(cb :cupboard-env) shelf-name)
+      (db-delete @(cb :shelves-db) shelf-name))))
 
 
 (defn- close-shelves [cb]
@@ -215,6 +225,9 @@
          (finally (close-cupboard ~cb-var))))))
 
 
+(defn remove-shelf [cb shelf-name]
+  (when-not (= (close-shelf cb shelf-name :remove true) OperationStatus/SUCCESS)
+    (throw (RuntimeException. "failed to remove shelf " shelf-name))))
 
 
 (defn list-shelves [cb]
