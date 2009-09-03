@@ -149,6 +149,11 @@
           shelf))))
 
 
+(defn list-shelves [cb]
+  (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
+          (.getDatabaseNames (@(cb :cupboard-env) :env-handle))))
+
+
 (defn- init-cupboard [cb-env cb-env-new]
   (let [shelves-db (db-open cb-env *shelves-db-name*
                             :allow-create cb-env-new :transactional true
@@ -159,10 +164,8 @@
      (when cb-env-new
        (get-shelf cb *default-shelf-name*))
      ;; open all shelves in the environment
-     (doseq [db-name (.getDatabaseNames (cb-env :env-handle))]
-       (when-not (or (.contains db-name ":") ; exclude indices
-                     (= db-name *shelves-db-name*))
-         (get-shelf cb db-name)))
+     (doseq [db-name (list-shelves cb)]
+       (get-shelf cb db-name))
      ;; return the cupboard
      cb
      ;; catch block must close all open databases
@@ -215,7 +218,6 @@
          (finally (close-cupboard ~cb-var))))))
 
 
-;;; TODO: (defn list-shelves ...)
 ;;; TODO: (defn remove-shelf ...)
 
 
