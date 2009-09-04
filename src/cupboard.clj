@@ -141,6 +141,10 @@
   [cb shelf-name & opts-args]
   (let [defaults {:read-only false}
         opts (merge defaults (args-map opts-args))]
+    (when (.contains shelf-name ":")
+      (throw (RuntimeException. "shelf names cannot contain ':' characters")))
+    (when (= shelf-name *shelves-db-name*)
+      (throw (RuntimeException. (str "shelf name cannot be " *shelves-db-name*))))
     (when (opts :force-reopen)
       (close-shelf cb shelf-name))
     (if (contains? @(cb :shelves) shelf-name)
