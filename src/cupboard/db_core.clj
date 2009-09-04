@@ -12,9 +12,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; useful structs
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defstruct* db-env
   :dir
@@ -61,9 +61,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; convenience functions, macros, and maps
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defmacro def-with-db-macro [macro-name open-fn close-fn]
   `(defmacro ~macro-name [[var# & open-args#] & body#]
@@ -74,8 +74,8 @@
 
 
 (defonce *lock-modes*
-  ;; NB: :serializable is not available here, as it does not make
-  ;; sense outside a transaction.
+  ;; NB: :serializable is not available here, as it does not make sense outside
+  ;; a transaction.
   {:read-uncommitted LockMode/READ_UNCOMMITTED
    :dirty-read LockMode/READ_UNCOMMITTED
    :read-committed LockMode/READ_COMMITTED
@@ -86,9 +86,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; database environments
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defn db-env-open [dir & conf-args]
   (let [defaults {:allow-create false
@@ -188,22 +188,22 @@
 
 (defn db-env-clean-log
   "Cleans database log files and prepares them for disposal at next checkpoint.
-   Normally done by background thread. Returns number of log files
-   cleaned. May be called repeatedly until it returns 0."
+   Normally done by background thread. Returns number of log files cleaned. May
+   be called repeatedly until it returns 0."
   [db-env]
   (.cleanLog #^Environment (db-env :env-handle)))
 
 
 (defn db-env-evict-memory
-  "Keeps memory usage within defined cache boundaries. Normally done
-   by background thread."
+  "Keeps memory usage within defined cache boundaries. Normally done by
+   background thread."
   [db-env]
   (.evictMemory #^Environment (db-env :env-handle)))
 
 
 (defn db-env-compress
-  "Compresses in-memory data structures after deletes. Normally done
-   by background thread."
+  "Compresses in-memory data structures after deletes. Normally done by
+   background thread."
   [db-env]
   (.compress #^Environment (db-env :env-handle)))
 
@@ -285,9 +285,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; transactions
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defn db-txn-begin [db-env & conf-args]
   (let [defaults {:txn nil              ; parent transaction, if any
@@ -344,9 +344,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; primary databases
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 ;; TODO: Add support for setting :btree-comparator and :duplicate-comparator
 ;; TODO: Add support for overriding :btree-comparator and :duplicate-comparator
@@ -446,9 +446,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; secondary databases (indices)
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defn db-sec-open [db-env db-primary name & conf-args]
   (let [defaults {:txn nil
@@ -517,13 +517,13 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; database cursors
 ;;;
 ;;; This code supports both primary and secondary cursors, and treats them
-;;; differently only where absolutely necessary. Calling code should simply
-;;; pass the appropriate database into db-cursor-open.
-;;; ----------------------------------------------------------------------
+;;; differently only where absolutely necessary. Calling code should simply pass
+;;; the appropriate database into db-cursor-open.
+;;; ----------------------------------------------------------------------------
 
 (defn db-cursor-open [db & conf-args]
   (let [defaults {:txn nil

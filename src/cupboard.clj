@@ -6,37 +6,37 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; default variables for implicit use with Cupboard's public API
 ;;;
-;;; These variables have meaningful global identity. Code which does
-;;; not need to explicitly track its own Cupboard instances and which
-;;; uses the common case of cupboard/with-transaction relies on them.
+;;; These variables have meaningful global identity. Code which does not need to
+;;; explicitly track its own Cupboard instances and which uses the common case
+;;; of cupboard/with-transaction relies on them.
 ;;;
-;;; Then, (1) macros which want to use them perform intentional
-;;; variable capture on cupboard/*cupboard* (using the form
-;;; ~'cupboard/*cupboard*) and use them in binding macros, and (2)
-;;; functions which want to use them default to cupboard/*cupboard*
-;;; and cupboard/*txn* as :cupboard and :txn optional arguments.
-;;; ----------------------------------------------------------------------
+;;; Then, (1) macros which want to use them perform intentional variable capture
+;;; on cupboard/*cupboard* (using the form ~'cupboard/*cupboard*) and use them
+;;; in binding macros, and (2) functions which want to use them default to
+;;; cupboard/*cupboard* and cupboard/*txn* as :cupboard and :txn optional
+;;; arguments.
+;;; ----------------------------------------------------------------------------
 
 (defonce *cupboard* nil)
 (defonce *txn* nil)
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; useful "constants"
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defonce *shelves-db-name* "_shelves")
 (defonce *default-shelf-name* "_default")
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; useful structs
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defstruct* cupboard
   :cupboard-env
@@ -47,8 +47,8 @@
 (defstruct* shelf
   :db
   :name
-  ;; Keep index types separate; this simplifies retrieval code since
-  ;; :unique and :any indices require different treatment.
+  ;; Keep index types separate; this simplifies retrieval code since :unique and
+  ;; :any indices require different treatment.
   :index-unique-dbs
   :index-any-dbs)
 
@@ -62,18 +62,18 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; keep Clojure's compile-time symbol resolution happy
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (declare list-shelves)
 (declare save)
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; cupboard maintenance
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defn- close-shelf [cb shelf-name & opts-args]
   (let [defaults {:remove false}
@@ -135,9 +135,9 @@
 
 
 (defn- get-shelf
-  "Returns the shelf identified by shelf-name from the cupboard
-   identified by cb. If the shelf is not open, open and return it. If
-   the shelf does not exist, then create, open, and return it."
+  "Returns the shelf identified by shelf-name from the cupboard identified by
+   cb. If the shelf is not open, open and return it. If the shelf does not
+   exist, then create, open, and return it."
   [cb shelf-name & opts-args]
   (let [defaults {:read-only false}
         opts (merge defaults (args-map opts-args))]
@@ -240,13 +240,13 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; persistent structs
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defn- filter-slots [slot-names slot-attrs target-key target-value]
-  ;; Do not use maps because the result should must have the same
-  ;; order as the input slot-names and slot-attrs parallel arrays.
+  ;; Do not use maps because the result should must have the same order as the
+  ;; input slot-names and slot-attrs parallel arrays.
   (let [csa (count slot-attrs)]
     (loop [res #{} i 0]
       (if (= i csa)
@@ -287,9 +287,9 @@
 
 
 
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 ;;; simple object saving, loading, and deleting
-;;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------------
 
 (defn save [obj & opts-args]
   (let [defaults {:cupboard *cupboard*
@@ -303,8 +303,8 @@
         txn (opts :txn)
         shelf (get-shelf cb (opts :shelf-name))
         pkey (pmeta :primary-key)]
-    ;; Verify that the shelf has open indices for pmeta :index-uniques
-    ;; and :index-anys.
+    ;; Verify that the shelf has open indices for pmeta :index-uniques and
+    ;; :index-anys.
     (doseq [unique-index (pmeta :index-uniques)]
       (get-index cb shelf unique-index :sorted-duplicates false))
     (doseq [any-index (pmeta :index-anys)]
