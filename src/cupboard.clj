@@ -344,7 +344,8 @@
           (letfn [(idx-scan [cursor-fn & cursor-fn-args]
                     (try
                      (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]
-                       (if (or (empty? res) (not (= (res index-slot) indexed-value)))
+                       (if (or (empty? res)
+                               (not (= ((second res) index-slot) indexed-value)))
                            (do (db-cursor-close idx-cursor)
                                (lazy-seq))
                            (lazy-seq (cons (res->data res) (idx-scan db-cursor-next)))))

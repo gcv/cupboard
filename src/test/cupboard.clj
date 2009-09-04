@@ -171,7 +171,9 @@
        (is (= @p1 (cb/retrieve :login "gw")))
        (is (= @p2 (cb/retrieve :login "ja" :cupboard cb/*cupboard*)))
        (is (= @p3 (cb/retrieve :login "tj")))
-       (is (= @p4 (cb/retrieve :login "jm"))))
+       (is (= @p4 (cb/retrieve :login "jm")))
+       ;; test :any index retrieval
+       (is (= (set (cb/retrieve :age 58)) #{@p4 @p3})))
      (finally
       (rmdir-recursive cupboard-location)))
     ;; explicitly bound cupboard
