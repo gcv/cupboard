@@ -1,6 +1,7 @@
 (ns test.cupboard
   (:use [clojure.contrib test-is])
   (:use [cupboard utils])
+  (:use [cupboard.db-core :as db-core])
   (:use [cupboard :as cb]))
 
 
@@ -125,7 +126,32 @@
                                      :cupboard cb :shelf-name "invalid:name")))
       (is (thrown? RuntimeException
                    (cb/make-instance president "tj" "Thomas" "Jefferson" 58
-                                     :cupboard cb :shelf-name *shelves-db-name*))))))
+                                     :cupboard cb :shelf-name *shelves-db-name*)))
+
+      (close-cupboard @cb)))
+
+  ;; check the correctness of the cupboard databases
+  (db-core/with-db-env [env *cupboard-path*]
+    (let [idx-name-age (str *default-shelf-name* :age)
+          idx-name-bank-acct (str *default-shelf-name* :bank-acct)
+          idx-name-first-name (str *default-shelf-name* :first-name)
+          idx-name-last-name (str *default-shelf-name* :last-name)
+          idx-name-login (str *default-shelf-name* :login)]
+      ;; check environment
+      (is (= (set (.getDatabaseNames (env :env-handle)))
+             #{*shelves-db-name* *default-shelf-name*
+               idx-name-age idx-name-bank-acct idx-name-first-name
+               idx-name-last-name idx-name-login}))
+      ;; check _shelves
+      (db-core/with-db [shelves-db env *shelves-db-name*]
+        (db-core/with-db-cursor [cur1 shelves-db]
+          (is (= (db-cursor-first cur1) [*default-shelf-name* {}]))
+          (is (= (db-cursor-next cur1) [idx-name-age {:sorted-duplicates true}]))
+          (is (= (db-cursor-next cur1) [idx-name-bank-acct {:sorted-duplicates false}]))
+          (is (= (db-cursor-next cur1) [idx-name-first-name {:sorted-duplicates true}]))
+          (is (= (db-cursor-next cur1) [idx-name-last-name {:sorted-duplicates true}]))
+          (is (= (db-cursor-next cur1) [idx-name-login {:sorted-duplicates false}]))
+          (is (= (db-cursor-next cur1) [])))))))
 
 
 (deftest basics
