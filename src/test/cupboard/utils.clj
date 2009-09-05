@@ -48,10 +48,10 @@
     (is (not (is-duck-typed-struct? not-dt3)))))
 
 
-(deftest vector-filter
-  (let [v1 [1 2 3 4 5 6 7 8 9 10]]
-    (is (= (filter-vec even? v1) [2 4 6 8 10]))
-    (is (= (remove-vec even? v1) [1 3 5 7 9]))))
+(deftest deref*-test
+  (let [x (atom {:one 1 :two 2})]
+    (is (= (deref* x) @x))
+    (is (nil? (deref* nil)))))
 
 
 (deftest date-routines

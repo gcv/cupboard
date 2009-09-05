@@ -69,6 +69,13 @@
       false))
 
 
+(defn deref*
+  "Just like (deref ref), except it only dereferences non-nil refs."
+  [ref]
+  (when-not (nil? ref)
+    (deref ref)))
+
+
 
 ;; ----------------------------------------------------------------------
 ;; date handling routines
