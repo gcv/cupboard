@@ -110,9 +110,10 @@
       (verify-shelf "presidents")
 
       ;; delete shelf
-      (remove-shelf @cb "presidents")
+      (remove-shelf "presidents" :cupboard @cb)
       (verify-shelf *default-shelf-name*)
       (is (not (contains? @(@cb :shelves) "presidents")))
+      (is (not (contains? (list-shelves :cupboard @cb) "presidents")))
 
       ;; close and reopen cupboard, and verify correctness of reopened state
       (close-cupboard @cb)
@@ -196,23 +197,35 @@
 (deftest transactions
   (let [p1 {:login "gw" :first-name "George" :last-name "Washington" :age 57 :bank-acct nil}]
     (cb/with-open-cupboard [*cupboard-path*]
-      (cb/with-txn []
-        (cb/make-instance president "gw" "George" "Washington" 57)
-        (is (= (cb/retrieve :login "gw") p1))
-        (cb/rollback)
-        (is (thrown-with-msg?
-              RuntimeException #".*non-open transaction"
-              (cb/make-instance president "ja" "John" "Adams" 62))))
-      (is (empty? (cb/retrieve :login "gw")))
-      (is (empty? (cb/retrieve :login "ja")))
-      (cb/with-txn [:write-no-sync true]
-        (cb/make-instance president "gw" "George" "Washington" 57)
-        (cb/commit)
-        (is (thrown-with-msg?
-              RuntimeException #".*non-open transaction"
-              (cb/make-instance president "ja" "John" "Adams" 62))))
-      (is (empty? (cb/retrieve :login "ja")))
-      (is (= (cb/retrieve :login "gw") p1)))))
+      ;; barebones operations
+      (testing "basic transactions"
+        (cb/with-txn []
+          (cb/make-instance president "gw" "George" "Washington" 57)
+          (is (= (cb/retrieve :login "gw") p1))
+          (cb/rollback)
+          (is (thrown-with-msg?
+                RuntimeException #".*non-open transaction"
+                (cb/make-instance president "ja" "John" "Adams" 62))))
+        (is (empty? (cb/retrieve :login "gw")))
+        (is (empty? (cb/retrieve :login "ja")))
+        (cb/with-txn [:write-no-sync true]
+          (cb/make-instance president "gw" "George" "Washington" 57)
+          (cb/commit)
+          (is (thrown-with-msg?
+                RuntimeException #".*non-open transaction"
+                (cb/make-instance president "ja" "John" "Adams" 62))))
+        (is (empty? (cb/retrieve :login "ja")))
+        (is (= (cb/retrieve :login "gw") p1)))
+      ;; transactional remove-shelf
+      (testing "transactional shelf removal"
+        (cb/make-instance president "aj" "Andrew" "Johnson" :shelf-name "presidents")
+        (cb/with-txn []
+          (is (= (cb/retrieve :login "aj" :shelf-name "presidents")
+                 {:login "aj" :first-name "Andrew" :last-name "Johnson" :bank-acct nil :age nil}))
+          (cb/remove-shelf "presidents")
+          (is (not (some #(= % "presidents") (list-shelves))))
+          (cb/rollback))
+        (is (some #(= % "presidents") (list-shelves)))))))
 
 
 ;; (deftest demo

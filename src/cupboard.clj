@@ -76,8 +76,10 @@
 ;;; ----------------------------------------------------------------------------
 
 (defn- close-shelf [cb shelf-name & opts-args]
-  (let [defaults {:remove false}
+  (let [defaults {:remove false
+                  :txn *txn*}
         opts (merge defaults (args-map opts-args))
+        txn (opts :txn)
         shelves (cb :shelves)
         shelf (@shelves shelf-name)]
     ;; close and dissociate index secondary databases
@@ -85,17 +87,20 @@
       (doseq [index-name (keys @(shelf index-type))]
         (let [index-db (@(shelf index-type) index-name)
               index-db-name (index-db :name)]
+          ;; Closing the index database should be safe even without a
+          ;; transaction; get-index ensures that an index database is open when
+          ;; needed.
           (db-sec-close index-db)
           (swap! (shelf index-type) dissoc index-name)
           (when (opts :remove)
-            (db-env-remove-db @(cb :cupboard-env) index-db-name)
-            (db-delete @(cb :shelves-db) index-db-name)))))
+            (db-env-remove-db @(cb :cupboard-env) index-db-name :txn txn)
+            (db-delete @(cb :shelves-db) index-db-name :txn txn)))))
     ;; close and dissociate the shelf primary database
     (db-close (shelf :db))
     (swap! shelves dissoc shelf-name)
     (when (opts :remove)
-      (db-env-remove-db @(cb :cupboard-env) shelf-name)
-      (db-delete @(cb :shelves-db) shelf-name))))
+      (db-env-remove-db @(cb :cupboard-env) shelf-name :txn txn)
+      (db-delete @(cb :shelves-db) shelf-name :txn txn))))
 
 
 (defn- close-shelves [cb]
@@ -107,7 +112,8 @@
   (let [opts (args-map opts-args)
         index-db-name (str (shelf :name) index-name)
         all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
-    (if (contains? all-indices index-name)
+    (if (and (contains? all-indices index-name)
+             (not (nil? @(-> all-indices index-name :db-handle))))
         ;; index already open, just return it
         (all-indices index-name)
         ;; else, need to open the index
@@ -175,7 +181,7 @@
      (when cb-env-new
        (get-shelf cb *default-shelf-name*))
      ;; open all shelves in the environment
-     (doseq [db-name (list-shelves cb)]
+     (doseq [db-name (list-shelves :cupboard cb)]
        (get-shelf cb db-name))
      ;; return the cupboard
      cb
@@ -229,14 +235,23 @@
          (finally (close-cupboard ~cb-var))))))
 
 
-(defn remove-shelf [cb shelf-name]
-  (when-not (= (close-shelf cb shelf-name :remove true) OperationStatus/SUCCESS)
-    (throw (RuntimeException. "failed to remove shelf " shelf-name))))
+(defn remove-shelf [shelf-name & opts-args]
+  (let [defaults {:cupboard *cupboard*
+                  :txn *txn*}
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)
+        txn (opts :txn)]
+    (when-not (= (close-shelf cb shelf-name :remove true :txn txn)
+                 OperationStatus/SUCCESS)
+      (throw (RuntimeException. "failed to remove shelf " shelf-name)))))
 
 
-(defn list-shelves [cb]
-  (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
-          (.getDatabaseNames @(@(cb :cupboard-env) :env-handle))))
+(defn list-shelves [& opts-args]
+  (let [defaults {:cupboard *cupboard*}
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)]
+    (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
+            (.getDatabaseNames @(@(cb :cupboard-env) :env-handle)))))
 
 
 
