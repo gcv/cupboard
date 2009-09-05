@@ -1,6 +1,6 @@
 (ns cupboard
   (:use [clojure set])
-  (:use [clojure.contrib str-utils java-utils])
+  (:use [clojure.contrib def str-utils java-utils])
   (:use [cupboard utils db-core])
   (:import [com.sleepycat.je OperationStatus DatabaseException]))
 
@@ -288,6 +288,59 @@
 
 
 ;;; ----------------------------------------------------------------------------
+;;; cupboard transactions
+;;; ----------------------------------------------------------------------------
+
+(defmacro- check-txn [txn & body]
+  `(let [txn# ~txn]                     ; avoid multiple evaluation
+     (if (or (nil? txn#) (= @(txn# :status) :open))
+         ~@body
+         (throw (RuntimeException. "attempting to operate on a non-open transaction")))))
+
+
+(defn begin-txn [& opts-args]
+  (let [defaults {:cupboard *cupboard*
+                  :isolation :repeatable-read}
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)]
+    (db-txn-begin @(cb :cupboard-env) :isolation (opts :isolation))))
+
+
+(defn commit [& opts-args]
+  (let [defaults {:txn *txn*}
+        opts (merge defaults (args-map opts-args))
+        txn (opts :txn)]
+    (check-txn txn
+      (db-txn-commit txn (dissoc opts :txn)))))
+
+
+(defn rollback [& opts-args]
+  (let [defaults {:txn *txn*}
+        opts (merge defaults (args-map opts-args))
+        txn (opts :txn)]
+    (check-txn txn
+      (db-txn-abort txn))))
+
+
+(defmacro with-txn [[& opts-args] & body]
+  (let [defaults {:txn '*txn*}
+        opts (merge defaults (args-map opts-args))
+        begin-txn-args (dissoc opts :txn)
+        cb-var (opts :cupboard)
+        txn-var (opts :txn)]
+    `(~(if (= txn-var '*txn*)
+           'binding
+           'let)
+      [~txn-var (begin-txn ~begin-txn-args)]
+        (try
+         ~@body
+         (finally
+          (when (= @(~txn-var :status) :open)
+            (db-txn-commit ~txn-var)))))))
+
+
+
+;;; ----------------------------------------------------------------------------
 ;;; simple object saving, loading, and deleting
 ;;; ----------------------------------------------------------------------------
 
@@ -310,7 +363,8 @@
     (doseq [any-index (pmeta :index-anys)]
       (get-index cb shelf any-index :sorted-duplicates true))
     ;; Write object!
-    (db-put (shelf :db) pkey obj)))
+    (check-txn txn
+      (db-put (shelf :db) pkey obj :txn txn))))
 
 
 (defn retrieve [index-slot indexed-value & opts-args]
@@ -319,6 +373,7 @@
                   :txn *txn*}
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)
+        txn (opts :txn)
         shelf (get-shelf cb (opts :shelf-name))
         index-unique-dbs @(shelf :index-unique-dbs)
         index-any-dbs @(shelf :index-any-dbs)]
@@ -336,11 +391,14 @@
       (cond
         ;; uniques
         (contains? index-unique-dbs index-slot)
-        (let [res (db-sec-get (index-unique-dbs index-slot) indexed-value)]
+        (let [res (check-txn txn
+                    (db-sec-get (index-unique-dbs index-slot) indexed-value
+                                :txn txn))]
           (res->data res))
         ;; anys --- cannot use with-db-cursor on lazy sequences
         (contains? index-any-dbs index-slot)
-        (let [idx-cursor (db-cursor-open (index-any-dbs index-slot))]
+        (let [idx-cursor (check-txn txn
+                           (db-cursor-open (index-any-dbs index-slot) :txn txn))]
           (letfn [(idx-scan [cursor-fn & cursor-fn-args]
                     (try
                      (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]

@@ -193,6 +193,28 @@
       (rmdir-recursive cupboard-location)))))
 
 
+(deftest transactions
+  (let [p1 {:login "gw" :first-name "George" :last-name "Washington" :age 57 :bank-acct nil}]
+    (cb/with-open-cupboard [*cupboard-path*]
+      (cb/with-txn []
+        (cb/make-instance president "gw" "George" "Washington" 57)
+        (is (= (cb/retrieve :login "gw") p1))
+        (cb/rollback)
+        (is (thrown-with-msg?
+              RuntimeException #".*non-open transaction"
+              (cb/make-instance president "ja" "John" "Adams" 62))))
+      (is (empty? (cb/retrieve :login "gw")))
+      (is (empty? (cb/retrieve :login "ja")))
+      (cb/with-txn [:write-no-sync true]
+        (cb/make-instance president "gw" "George" "Washington" 57)
+        (cb/commit)
+        (is (thrown-with-msg?
+              RuntimeException #".*non-open transaction"
+              (cb/make-instance president "ja" "John" "Adams" 62))))
+      (is (empty? (cb/retrieve :login "ja")))
+      (is (= (cb/retrieve :login "gw") p1)))))
+
+
 ;; (deftest demo
 ;;   (cb/with-open-cupboard [*cb* "/mnt/cupboard-raid-10"]
 ;;     (cb/with-transaction [*txn* :cb *cb*] ; optional keyword argument; can all this be optional?
