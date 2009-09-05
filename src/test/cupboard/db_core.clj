@@ -38,6 +38,49 @@
 ;;; tests
 ;;; ----------------------------------------------------------------------------
 
+(deftest basic-db-open-close
+  (let [path (make-temp-dir)]
+    (try
+     (let [e (db-env-open path :allow-create true :transactional true)
+           db (db-open e "db" :allow-create true)
+           idx1 (db-sec-open e db "idx1" :allow-create true :key-creator-fn :idx1)
+           idx2 (db-sec-open e db "idx2" :allow-create true :key-creator-fn :idx2)
+           txn1 (db-txn-begin e)
+           txn2 (db-txn-begin e)
+           cur1 (db-cursor-open idx1)
+           cur2 (db-cursor-open idx2)
+           jcur1 (db-join-cursor-open [cur1 cur2])]
+       (is (not (nil? @(jcur1 :join-cursor-handle))))
+       (db-join-cursor-close jcur1)
+       (is (nil? @(jcur1 :join-cursor-handle)))
+       (is (not (nil? @(cur2 :cursor-handle))))
+       (db-cursor-close cur2)
+       (is (nil? @(cur2 :cursor-handle)))
+       (is (not (nil? @(cur1 :cursor-handle))))
+       (db-cursor-close cur1)
+       (is (nil? @(cur1 :cursor-handle)))
+       (is (not (nil? @(txn2 :txn-handle))))
+       (db-txn-commit txn2)
+       (is (nil? @(txn2 :txn-handle)))
+       (is (not (nil? @(txn1 :txn-handle))))
+       (db-txn-abort txn1)
+       (is (nil? @(txn1 :txn-handle)))
+       (is (not (nil? @(idx2 :db-handle))))
+       (db-sec-close idx2)
+       (is (nil? @(idx2 :db-handle)))
+       (is (not (nil? @(idx1 :db-handle))))
+       (db-sec-close idx1)
+       (is (nil? @(idx1 :db-handle)))
+       (is (not (nil? @(db :db-handle))))
+       (db-close db)
+       (is (nil? @(db :db-handle)))
+       (is (not (nil? @(e :env-handle))))
+       (db-env-close e)
+       (is (nil? @(e :env-handle))))
+     (finally
+      (rmdir-recursive path)))))
+
+
 (deftest db-operations
   (is (thrown? DatabaseException (db-open *db-env* "not here" :allow-create false)))
   (with-db [db *db-env* "newly created" :allow-create true])

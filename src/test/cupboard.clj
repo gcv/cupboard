@@ -138,7 +138,7 @@
           idx-name-last-name (str *default-shelf-name* :last-name)
           idx-name-login (str *default-shelf-name* :login)]
       ;; check environment
-      (is (= (set (.getDatabaseNames (env :env-handle)))
+      (is (= (set (.getDatabaseNames @(env :env-handle)))
              #{*shelves-db-name* *default-shelf-name*
                idx-name-age idx-name-bank-acct idx-name-first-name
                idx-name-last-name idx-name-login}))

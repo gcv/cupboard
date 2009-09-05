@@ -119,7 +119,7 @@
               index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
                                     index-db-name index-open-opts)]
           (db-put @(cb :shelves-db) index-db-name index-opts)
-          (swap! (shelf (if (.. (index-db :db-handle) getConfig getSortedDuplicates)
+          (swap! (shelf (if (.. @(index-db :db-handle) getConfig getSortedDuplicates)
                             :index-any-dbs
                             :index-unique-dbs))
                  assoc index-name index-db)
@@ -128,7 +128,7 @@
 
 (defn- open-indices [cb shelf]
   (let [shelf-name (shelf :name)]
-    (doseq [db-name (.getDatabaseNames (@(cb :cupboard-env) :env-handle))]
+    (doseq [db-name (.getDatabaseNames @(@(cb :cupboard-env) :env-handle))]
       (let [[found-shelf-name index-name] (re-split #":" db-name)]
         (when (and (not (nil? index-name)) (= shelf-name found-shelf-name))
           (get-index cb shelf (keyword index-name)))))))
@@ -236,7 +236,7 @@
 
 (defn list-shelves [cb]
   (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
-          (.getDatabaseNames (@(cb :cupboard-env) :env-handle))))
+          (.getDatabaseNames @(@(cb :cupboard-env) :env-handle))))
 
 
 
