@@ -377,8 +377,13 @@
     (doseq [any-index (pmeta :index-anys)]
       (get-index cb shelf any-index :sorted-duplicates true))
     ;; Write object!
-    (check-txn txn
-      (db-put (shelf :db) pkey obj :txn txn))))
+    (let [res (check-txn txn
+                (db-put (shelf :db) pkey obj :txn txn))]
+      (if (= res OperationStatus/SUCCESS)
+          (with-meta obj pmeta)
+          ;; This exception should not occur, right? Shelves do not allow
+          ;; duplicates, and none of the overwrite-affecting flags are used.
+          (throw (RuntimeException. (str "failed to save " obj)))))))
 
 
 (defn retrieve [index-slot indexed-value & opts-args]
