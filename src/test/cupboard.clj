@@ -237,6 +237,41 @@
       (is (empty? (cb/retrieve :login "gw"))))))
 
 
+(deftest assoc*-dissoc*
+  (let [date-gw (iso8601->date "1732-02-22 00:00:00Z")
+        gw1 {:login "gw" :first-name "George" :last-name "Washington"
+             :age 57 :bank-acct nil}
+        gw2 {:login "gw" :first-name "George" :last-name "Washington"
+             :age 57 :bank-acct 1}
+        gw3 {:login "gw" :first-name "George" :last-name "Washington"
+             :age 57 :bank-acct 1 :birthday date-gw}
+        date-ja (iso8601->date "1735-10-30 00:00:00Z")
+        ja1 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct nil}
+        ja2 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2}
+        ja3 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2
+             :birthday date-ja}]
+    (cb/with-open-cupboard [*cupboard-path*]
+      (testing "simple assoc*-dissoc* operations"
+        (let [p (atom (cb/make-instance president "gw" "George" "Washington" 57))]
+          (is (= (cb/retrieve :login "gw") gw1))
+          (reset! p (cb/assoc* @p :bank-acct 1))
+          (is (= (cb/retrieve :login "gw") gw2))
+          (reset! p (cb/assoc* @p :birthday date-gw))
+          (is (= (cb/retrieve :login "gw") gw3))
+          (reset! p (cb/dissoc* @p :birthday))
+          (is (= (cb/retrieve :login "gw") gw2))))
+      (testing "assoc*-dissoc* operations non-default shelves"
+        (let [p (atom (cb/make-instance president "ja" "John" "Adams" 62
+                                        :shelf-name "presidents"))]
+          (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja1))
+          (reset! p (cb/assoc* @p :bank-acct 2))
+          (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2))
+          (reset! p (cb/assoc* @p :birthday date-ja))
+          (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja3))
+          (reset! p (cb/dissoc* @p :birthday))
+          (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2)))))))
+
+
 ;; (deftest demo
 ;;   (cb/with-open-cupboard [*cb* "/mnt/cupboard-raid-10"]
 ;;     (cb/with-transaction [*txn* :cb *cb*] ; optional keyword argument; can all this be optional?

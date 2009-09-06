@@ -437,3 +437,23 @@
 
 
 ;;; TODO: (defn delete ...)
+
+
+;; assoc! would be a better name, but Clojure's transient data structures have
+;; taken over that role.
+(defn assoc*
+  "Just like clojure.core/assoc, but works on objects defined with defpersist
+   and created with make-instance. Does not support the long form of assoc with
+   multiple key-value pairs because it makes :txn specifications ambiguous."
+  [obj key val & opts-args]
+  (let [opts (args-map opts-args)]
+    (save (assoc obj key val) opts)))
+
+
+(defn dissoc*
+  "Just like clojure.core/dissoc, but works on objects defined with defpersist
+   and created with make-instance. Does not support the long form of dissoc with
+   multiple key-value pairs because it makes :txn specifications ambiguous."
+  [obj key & opts-args]
+  (let [opts (args-map opts-args)]
+    (save (dissoc obj key) opts)))
