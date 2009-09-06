@@ -187,7 +187,6 @@
      cb
      ;; catch block must close all open databases
      (catch Exception e
-       ;; TODO: LOGGING?
        (try
         (throw e)
         (finally
@@ -207,7 +206,6 @@
       (try
        (init-cupboard cb-env cb-env-new)
        (catch Exception e
-         ;; TODO: LOGGING?
          (try
           (throw e)
           (finally
@@ -424,7 +422,6 @@
                                (lazy-seq))
                            (lazy-seq (cons (res->data res) (idx-scan db-cursor-next)))))
                      (catch DatabaseException de
-                       ;; TODO: Logging?
                        (db-cursor-close idx-cursor)
                        (throw de))))]
             (idx-scan db-cursor-search indexed-value)))
