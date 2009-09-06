@@ -282,9 +282,9 @@
         idx-anys (filter-slots slot-names slot-attrs :index :any)
         opts (args-map opts-args)]
     `(do (defstruct ~name ~@slot-names)
-         (defmethod make-instance ~name [& instance-args#]
-           (let [[struct-args#
-                  instance-kw-args#] (args-&rest-&keys instance-args#)
+         (defmethod make-instance ~name [struct-type# struct-args#
+                                         & instance-kw-raw-args#]
+           (let [instance-kw-args# (args-map instance-kw-raw-args#)
                  inst-kw-meta-args# (dissoc instance-kw-args# :txn :save)
                  save-instance# (or (not (contains? instance-kw-args# :save))
                                     (instance-kw-args# :save))
@@ -293,7 +293,9 @@
                                    (java.util.UUID/randomUUID)
                                    ~idx-uniques ~idx-anys)
                  inst-meta# (merge ~opts inst-kw-meta-args# inst-meta-base#)
-                 inst# (with-meta (apply struct struct-args#) inst-meta#)]
+                 inst# (with-meta
+                         (apply struct (cons struct-type# struct-args#))
+                         inst-meta#)]
              (when save-instance#
                (save inst# inst-kw-save-args#))
              inst#)))))
@@ -437,7 +439,7 @@
 
 
 ;; assoc! would be a better name, but Clojure's transient data structures have
-;; taken over that role.
+;; claimed it.
 (defn assoc*
   "Just like clojure.core/assoc, but works on objects defined with defpersist
    and created with make-instance. Does not support the long form of assoc with

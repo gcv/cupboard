@@ -36,10 +36,10 @@
 
 
 (deftest persistent-structures
-  (let [p1 (cb/make-instance president :save false "gw" "George" "Washington" 57)
-        p2 (cb/make-instance president :save false "ja" "John" "Adams" 62)
-        p3 (cb/make-instance president :save false "tj" "Thomas" "Jefferson" 58)
-        p4 (cb/make-instance president :save false "jm" "James" "Madison" 58)]
+  (let [p1 (cb/make-instance president ["gw" "George" "Washington" 57] :save false)
+        p2 (cb/make-instance president ["ja" "John" "Adams" 62] :save false)
+        p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58] :save false)
+        p4 (cb/make-instance president ["jm" "James" "Madison" 58] :save false)]
     (is (= (p1 :login) "gw"))
     (is (= (p2 :first-name) "John"))
     (is (= (p3 :age) 58))
@@ -92,10 +92,10 @@
       (is (not (-> (@(@cb :shelves) *default-shelf-name*) :db :sorted-duplicates)))
 
       ;; write something to the default shelf
-      (cb/make-instance president "gw" "George" "Washington" 57 :cupboard @cb)
+      (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard @cb)
       (verify-shelf *default-shelf-name*)
       ;; write something to a different shelf
-      (cb/make-instance president "ja" "John" "Adams" 62 :cupboard @cb :shelf-name "presidents")
+      (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard @cb :shelf-name "presidents")
       (verify-shelf "presidents")
 
       ;; close cupboard
@@ -123,10 +123,10 @@
 
       ;; check invalid shelf names
       (is (thrown? RuntimeException
-                   (cb/make-instance president "tj" "Thomas" "Jefferson" 58
+                   (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]
                                      :cupboard cb :shelf-name "invalid:name")))
       (is (thrown? RuntimeException
-                   (cb/make-instance president "tj" "Thomas" "Jefferson" 58
+                   (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]
                                      :cupboard cb :shelf-name *shelves-db-name*)))
 
       (close-cupboard @cb)))
@@ -164,10 +164,10 @@
     ;; default cb/*cupboard*
     (try
      (cb/with-open-cupboard [cupboard-location]
-       (reset! p1 (cb/make-instance president "gw" "George" "Washington" 57))
-       (reset! p2 (cb/make-instance president "ja" "John" "Adams" 62))
-       (reset! p3 (cb/make-instance president "tj" "Thomas" "Jefferson" 58))
-       (reset! p4 (cb/make-instance president "jm" "James" "Madison" 58)))
+       (reset! p1 (cb/make-instance president ["gw" "George" "Washington" 57]))
+       (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62]))
+       (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))
+       (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58])))
      (cb/with-open-cupboard [cupboard-location]
        (is (= @p1 (cb/retrieve :login "gw")))
        (is (= @p2 (cb/retrieve :login "ja" :cupboard cb/*cupboard*)))
@@ -180,10 +180,10 @@
     ;; explicitly bound cupboard
     (try
      (cb/with-open-cupboard [cb cupboard-location]
-       (reset! p1 (cb/make-instance president "gw" "George" "Washington" 57 :cupboard cb))
-       (reset! p2 (cb/make-instance president "ja" "John" "Adams" 62 :cupboard cb))
-       (reset! p3 (cb/make-instance president "tj" "Thomas" "Jefferson" 58 :cupboard cb))
-       (reset! p4 (cb/make-instance president "jm" "James" "Madison" 58 :cupboard cb)))
+       (reset! p1 (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard cb))
+       (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard cb))
+       (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58] :cupboard cb))
+       (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58] :cupboard cb)))
      (cb/with-open-cupboard [cb cupboard-location]
        (is (= @p1 (cb/retrieve :login "gw" :cupboard cb)))
        (is (= @p2 (cb/retrieve :login "ja" :cupboard cb)))
@@ -200,25 +200,25 @@
       ;; barebones operations
       (testing "basic transactions"
         (cb/with-txn []
-          (cb/make-instance president "gw" "George" "Washington" 57)
+          (cb/make-instance president ["gw" "George" "Washington" 57])
           (is (= (cb/retrieve :login "gw") p1))
           (cb/rollback)
           (is (thrown-with-msg?
                 RuntimeException #".*non-open transaction"
-                (cb/make-instance president "ja" "John" "Adams" 62))))
+                (cb/make-instance president ["ja" "John" "Adams" 62]))))
         (is (empty? (cb/retrieve :login "gw")))
         (is (empty? (cb/retrieve :login "ja")))
         (cb/with-txn [:write-no-sync true]
-          (cb/make-instance president "gw" "George" "Washington" 57)
+          (cb/make-instance president ["gw" "George" "Washington" 57])
           (cb/commit)
           (is (thrown-with-msg?
                 RuntimeException #".*non-open transaction"
-                (cb/make-instance president "ja" "John" "Adams" 62))))
+                (cb/make-instance president ["ja" "John" "Adams" 62]))))
         (is (empty? (cb/retrieve :login "ja")))
         (is (= (cb/retrieve :login "gw") p1)))
       ;; transactional remove-shelf
       (testing "transactional shelf removal"
-        (cb/make-instance president "aj" "Andrew" "Johnson" :shelf-name "presidents")
+        (cb/make-instance president ["aj" "Andrew" "Johnson"] :shelf-name "presidents")
         (cb/with-txn []
           (is (= (cb/retrieve :login "aj" :shelf-name "presidents")
                  {:login "aj" :first-name "Andrew" :last-name "Johnson" :bank-acct nil :age nil}))
@@ -232,7 +232,7 @@
   (cb/with-open-cupboard [*cupboard-path*]
     (testing "lexically bound transaction"
       (cb/with-txn [txn1]
-        (cb/make-instance president "gw" "George" "Washington" 57 :txn txn1)
+        (cb/make-instance president ["gw" "George" "Washington" 57] :txn txn1)
         (cb/rollback txn1))
       (is (empty? (cb/retrieve :login "gw"))))))
 
@@ -252,7 +252,7 @@
              :birthday date-ja}]
     (cb/with-open-cupboard [*cupboard-path*]
       (testing "simple assoc*-dissoc* operations"
-        (let [p (atom (cb/make-instance president "gw" "George" "Washington" 57))]
+        (let [p (atom (cb/make-instance president ["gw" "George" "Washington" 57]))]
           (is (= (cb/retrieve :login "gw") gw1))
           (reset! p (cb/assoc* @p :bank-acct 1))
           (is (= (cb/retrieve :login "gw") gw2))
@@ -261,7 +261,7 @@
           (reset! p (cb/dissoc* @p :birthday))
           (is (= (cb/retrieve :login "gw") gw2))))
       (testing "assoc*-dissoc* operations non-default shelves"
-        (let [p (atom (cb/make-instance president "ja" "John" "Adams" 62
+        (let [p (atom (cb/make-instance president ["ja" "John" "Adams" 62]
                                         :shelf-name "presidents"))]
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja1))
           (reset! p (cb/assoc* @p :bank-acct 2))
