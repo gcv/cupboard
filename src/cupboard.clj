@@ -315,43 +315,44 @@
 
 (defn begin-txn [& opts-args]
   (let [defaults {:cupboard *cupboard*
+                  :parent-txn nil       ; XXX: Not supported in Berkeley DB JE yet.
                   :isolation :repeatable-read}
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)]
-    (db-txn-begin @(cb :cupboard-env) :isolation (opts :isolation))))
+    (db-txn-begin @(cb :cupboard-env)
+                  :txn (opts :parent-txn)
+                  :isolation (opts :isolation))))
 
 
-(defn commit [& opts-args]
-  (let [defaults {:txn *txn*}
-        opts (merge defaults (args-map opts-args))
-        txn (opts :txn)]
-    (check-txn txn
-      (db-txn-commit txn (dissoc opts :txn)))))
+(letfn [(parse-args [args]
+          (cond (empty? args) [*txn* (args-map args)]
+                (keyword? (first args)) [*txn* (args-map args)]
+                :else [(first args) (args-map (rest args))]))]
+
+  (defn commit [& args]
+    (let [[txn opts] (parse-args args)]
+      (check-txn txn
+        (db-txn-commit txn opts))))
+
+  (defn rollback [& args]
+    (let [[txn opts] (parse-args args)]
+      (check-txn txn
+        (db-txn-abort txn)))))
 
 
-(defn rollback [& opts-args]
-  (let [defaults {:txn *txn*}
-        opts (merge defaults (args-map opts-args))
-        txn (opts :txn)]
-    (check-txn txn
-      (db-txn-abort txn))))
-
-
-(defmacro with-txn [[& opts-args] & body]
-  (let [defaults {:txn '*txn*}
-        opts (merge defaults (args-map opts-args))
-        begin-txn-args (dissoc opts :txn)
-        cb-var (opts :cupboard)
-        txn-var (opts :txn)]
+(defmacro with-txn [[& args] & body]
+  (let [[txn-var opts] (cond (empty? args) ['*txn* (args-map args)]
+                             (keyword? (first args)) ['*txn* (args-map args)]
+                             :else [(first args) (args-map (rest args))])]
     `(~(if (= txn-var '*txn*)
            'binding
            'let)
-      [~txn-var (begin-txn ~begin-txn-args)]
+      [~txn-var (begin-txn ~opts)]
         (try
          ~@body
          (finally
           (when (= @(~txn-var :status) :open)
-            (db-txn-commit ~txn-var)))))))
+            (commit ~txn-var)))))))
 
 
 

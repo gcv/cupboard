@@ -194,7 +194,7 @@
       (rmdir-recursive cupboard-location)))))
 
 
-(deftest transactions
+(deftest transaction-basics
   (let [p1 {:login "gw" :first-name "George" :last-name "Washington" :age 57 :bank-acct nil}]
     (cb/with-open-cupboard [*cupboard-path*]
       ;; barebones operations
@@ -226,6 +226,15 @@
           (is (not (some #(= % "presidents") (list-shelves))))
           (cb/rollback))
         (is (some #(= % "presidents") (list-shelves)))))))
+
+
+(deftest transaction-binding
+  (cb/with-open-cupboard [*cupboard-path*]
+    (testing "lexically bound transaction"
+      (cb/with-txn [txn1]
+        (cb/make-instance president "gw" "George" "Washington" 57 :txn txn1)
+        (cb/rollback txn1))
+      (is (empty? (cb/retrieve :login "gw"))))))
 
 
 ;; (deftest demo
