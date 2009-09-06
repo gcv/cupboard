@@ -436,9 +436,6 @@
                                              (shelf :name))))))))
 
 
-;;; TODO: (defn delete ...)
-
-
 ;; assoc! would be a better name, but Clojure's transient data structures have
 ;; taken over that role.
 (defn assoc*
@@ -457,3 +454,17 @@
   [obj key & opts-args]
   (let [opts (args-map opts-args)]
     (save (dissoc obj key) opts)))
+
+
+(defn conj*
+  "See assoc*."
+  [obj x & opts-args]
+  (let [opts (args-map opts-args)]
+    (save (conj obj x) opts)))
+
+
+;;; XXX: disj* is not implemented because defpersist-defined objects are not
+;;; sets.
+
+
+;;; TODO: (defn delete ...)
