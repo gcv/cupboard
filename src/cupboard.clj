@@ -194,7 +194,7 @@
          (close-shelves cb)))))))
 
 
-(defn open-cupboard [cb-dir-arg]
+(defn open-cupboard [cb-dir-arg & opts-args]
   (let [cb-dir (file cb-dir-arg)
         cb-env-new (do (when (and (.exists cb-dir) (.isFile cb-dir))
                          (throw (RuntimeException.
@@ -202,7 +202,8 @@
                        (when-not (or (.exists cb-dir) (.mkdir cb-dir))
                          (throw (RuntimeException. (str "failed to create " cb-dir))))
                        (empty? (seq (.list cb-dir))))]
-    (let [cb-env (db-env-open cb-dir :allow-create cb-env-new :transactional true)]
+    (let [cb-env (db-env-open cb-dir (merge (args-map opts-args)
+                                            {:allow-create cb-env-new :transactional true}))]
       (try
        (init-cupboard cb-env cb-env-new)
        (catch Exception e
@@ -221,13 +222,19 @@
 
 
 (defmacro with-open-cupboard [[& args] & body]
-  (let [[cb-var cb-dir] (if (= (count args) 2)
-                            args
-                            ['*cupboard* (first args)])]
+  (let [[cb-var cb-dir opts]
+        (condp = (count args)
+          0 (throw (RuntimeException. "invalid with-open-cupboard call"))
+          1 ['*cupboard* (first args) {}]
+          2 [(first args) (second args) {}]
+          ;; else
+          (if (symbol? (first args))
+              [(first args) (second args) (nnext args)]
+              ['*cupboard* (first args) (next args)]))]
     `(~(if (= cb-var '*cupboard*)
            'binding
            'let)
-      [~cb-var (open-cupboard ~cb-dir)]
+      [~cb-var (apply open-cupboard [~cb-dir ~@opts])]
         (try
          ~@body
          (finally (close-cupboard ~cb-var))))))
