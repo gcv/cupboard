@@ -68,7 +68,7 @@
 (def-marshal-write java.lang.String .writeString)
 (def-marshal-write java.util.Date
   (fn [#^TupleOutput tuple-output #^java.util.Date data]
-    (.writeString tuple-output (date->iso8601 data :millis true))))
+    (.writeString tuple-output (date->iso8601 data :msec true))))
 (def-marshal-write java.util.UUID
   (fn [#^TupleOutput tuple-output #^java.util.UUID uuid]
     (.writeLong tuple-output (.getMostSignificantBits uuid))

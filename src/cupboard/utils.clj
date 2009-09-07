@@ -85,24 +85,24 @@
      (doto (SimpleDateFormat. "yyyy-MM-dd HH:mm:ss'Z'")
        (.setTimeZone (TimeZone/getTimeZone "UTC"))))
 
-(def #^SimpleDateFormat *iso8601-date-format-millis*
+(def #^SimpleDateFormat *iso8601-date-format-msec*
      (doto (SimpleDateFormat. "yyyy-MM-dd HH:mm:ss.SSS'Z'")
        (.setTimeZone (TimeZone/getTimeZone "UTC"))))
 
 (defn date->iso8601
   {:tag String}
   [#^Date date & opts-args]
-  (let [defaults {:millis false}
+  (let [defaults {:msec false}
         opts     (merge defaults (args-map opts-args))]
-    (if (opts :millis)
-        (.format *iso8601-date-format-millis* date)
+    (if (opts :msec)
+        (.format *iso8601-date-format-msec* date)
         (.format *iso8601-date-format* date))))
 
 (defn iso8601->date
   {:tag Date}
   [#^String datestr]
   (try
-   (.parse *iso8601-date-format-millis* datestr)
+   (.parse *iso8601-date-format-msec* datestr)
    (catch ParseException pe
      (.parse *iso8601-date-format* datestr))))
 
