@@ -249,7 +249,12 @@
         ja1 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct nil}
         ja2 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2}
         ja3 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2
-             :birthday date-ja}]
+             :birthday date-ja}
+        date-tj (iso8601->date "1743-04-13 00:00:00Z")
+        tj1 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct nil}
+        tj2 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3}
+        tj3 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3
+             :birthday date-tj}]
     (cb/with-open-cupboard [*cupboard-path*]
       (testing "simple assoc*-dissoc* operations"
         (let [p (atom (cb/make-instance president ["gw" "George" "Washington" 57]))]
@@ -260,7 +265,7 @@
           (is (= (cb/retrieve :login "gw") gw3))
           (reset! p (cb/dissoc* @p :birthday))
           (is (= (cb/retrieve :login "gw") gw2))))
-      (testing "assoc*-dissoc* operations non-default shelves"
+      (testing "assoc*-dissoc* operations on non-default shelves"
         (let [p (atom (cb/make-instance president ["ja" "John" "Adams" 62]
                                         :shelf-name "presidents"))]
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja1))
@@ -269,7 +274,15 @@
           (reset! p (cb/assoc* @p :birthday date-ja))
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja3))
           (reset! p (cb/dissoc* @p :birthday))
-          (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2)))))))
+          (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2))))
+      (testing "assoc*-dissoc* operations with multiple operands"
+        (let [p (atom (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))]
+          (is (= (cb/retrieve :login "tj") tj1))
+          (reset! p (cb/assoc* @p [:bank-acct 3 :birthday date-tj]))
+          (is (= (cb/retrieve :login "tj") tj3))
+          (reset! p (cb/assoc* @p [:nonce1 1 :nonce2 2]))
+          (reset! p (cb/dissoc* @p [:birthday :nonce1 :nonce2]))
+          (is (= (cb/retrieve :login "tj") tj2)))))))
 
 
 ;; (deftest demo

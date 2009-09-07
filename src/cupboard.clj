@@ -442,31 +442,36 @@
 ;; claimed it.
 (defn assoc*
   "Just like clojure.core/assoc, but works on objects defined with defpersist
-   and created with make-instance. Does not support the long form of assoc with
-   multiple key-value pairs because it makes :txn specifications ambiguous."
-  [obj key val & opts-args]
-  (let [opts (args-map opts-args)]
-    (save (assoc obj key val) opts)))
+   and created with make-instance. Automatically saves modifications.
+   Two forms: (assoc* obj new-key new-value & options)
+              (assoc* obj [k1 v1 k2 v2 ...] & options)"
+  [obj & args]
+  (if (sequential? (first args))
+      ;; long assoc form, permitting multiple key-value pairs
+      (let [[kv-pairs & opts-args] args
+            opts (args-map opts-args)]
+        (save (apply assoc (cons obj kv-pairs)) opts))
+      ;; short assoc form
+      (let [[key value & opts-args] args
+            opts (args-map opts-args)]
+        (save (assoc obj key value) opts))))
 
 
 (defn dissoc*
   "Just like clojure.core/dissoc, but works on objects defined with defpersist
-   and created with make-instance. Does not support the long form of dissoc with
-   multiple key-value pairs because it makes :txn specifications ambiguous."
-  [obj key & opts-args]
-  (let [opts (args-map opts-args)]
-    (save (dissoc obj key) opts)))
-
-
-(defn conj*
-  "See assoc*."
-  [obj x & opts-args]
-  (let [opts (args-map opts-args)]
-    (save (conj obj x) opts)))
-
-
-;;; XXX: disj* is not implemented because defpersist-defined objects are not
-;;; sets.
+   and created with make-instance. Automatically saves modifications.
+   Two forms: (dissoc* obj key & options)
+              (dissoc* obj [k1 k2 ...] & options)"
+  [obj & args]
+  (if (sequential? (first args))
+      ;; long dissoc form, permitting multiple key-value pairs
+      (let [[keys & opts-args] args
+            opts (args-map opts-args)]
+        (save (apply dissoc (cons obj keys)) opts))
+      ;; short dissoc form
+      (let [[key & opts-args] args
+            opts (args-map opts-args)]
+        (save (dissoc obj key) opts))))
 
 
 ;;; TODO: (defn delete ...)
