@@ -237,6 +237,68 @@
       (is (empty? (cb/retrieve :login "gw"))))))
 
 
+(deftest deadlocks
+  ;; Cannot use with-open-cupboard because Clojure's dynamic variables do not
+  ;; propagate to child threads.
+  (let [cb (open-cupboard *cupboard-path*)]
+    (try
+     (let [gw (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard cb)
+           ja (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard cb)
+           done-1 (atom false)
+           done-2 (atom false)]
+       ;; phase one
+       (testing "deadlock resolution, both threads commit"
+         (.start (Thread. (fn []
+                            (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 10]
+                              (cb/assoc* gw :bank-acct 1 :cupboard cb)
+                              (Thread/sleep 5)
+                              (cb/assoc* ja :bank-acct 2 :cupboard cb))
+                            (reset! done-1 true))))
+         (.start (Thread. (fn []
+                            (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 50]
+                              (cb/assoc* ja :bank-acct 3 :cupboard cb)
+                              (Thread/sleep 5)
+                              (cb/assoc* gw :bank-acct 4 :cupboard cb))
+                            (reset! done-2 true))))
+         ;; wait for threads to complete
+         (loop [i 0]
+           (when-not (and @done-1 @done-2)
+             (Thread/sleep 100)
+             (recur (inc i))))
+         ;; The first thread has a shorter retry delay, so it should win the race.
+         (is (= (cb/retrieve :login "gw" :cupboard cb) (assoc gw :bank-acct 4)))
+         (is (= (cb/retrieve :login "ja" :cupboard cb) (assoc ja :bank-acct 3))))
+       ;; phase two
+       (testing "deadlock resolution, one thread rolls back permanently"
+         (reset! done-1 false)
+         (reset! done-2 false)
+         (.start (Thread. (fn []
+                            (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 100]
+                              (cb/assoc* gw :bank-acct 5 :cupboard cb)
+                              (Thread/sleep 100)
+                              (cb/assoc* ja :bank-acct 6 :cupboard cb))
+                            (reset! done-1 true))))
+         (.start (Thread. (fn []
+                            (is (thrown? RuntimeException
+                                  (try
+                                   (with-txn [:cupboard cb :max-attempts 1]
+                                     (cb/assoc* ja :bank-acct 7 :cupboard cb)
+                                     (Thread/sleep 100)
+                                     (cb/assoc* gw :bank-acct 8 :cupboard cb))
+                                   (finally
+                                    (reset! done-2 true))))))))
+         ;; wait for threads to complete
+         (loop [i 0]
+           (when-not (and @done-1 @done-2)
+             (Thread/sleep 100)
+             (recur (inc i))))
+         ;; Only the first thread should commit here.
+         (is (= (cb/retrieve :login "gw" :cupboard cb) (assoc gw :bank-acct 5)))
+         (is (= (cb/retrieve :login "ja" :cupboard cb) (assoc ja :bank-acct 6)))))
+     (finally
+      (close-cupboard cb)))))
+
+
 (deftest assoc*-dissoc*
   (let [date-gw (iso8601->date "1732-02-22 00:00:00Z")
         gw1 {:login "gw" :first-name "George" :last-name "Washington"

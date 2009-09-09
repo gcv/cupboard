@@ -2,7 +2,7 @@
   (:use [clojure set])
   (:use [clojure.contrib def str-utils java-utils])
   (:use [cupboard utils db-core])
-  (:import [com.sleepycat.je OperationStatus DatabaseException]))
+  (:import [com.sleepycat.je OperationStatus DatabaseException DeadlockException]))
 
 
 
@@ -348,18 +348,40 @@
 
 
 (defmacro with-txn [[& args] & body]
-  (let [[txn-var opts] (cond (empty? args) ['*txn* (args-map args)]
-                             (keyword? (first args)) ['*txn* (args-map args)]
-                             :else [(first args) (args-map (rest args))])]
-    `(~(if (= txn-var '*txn*)
-           'binding
-           'let)
-      [~txn-var (begin-txn ~opts)]
-        (try
-         ~@body
-         (finally
-          (when (= @(~txn-var :status) :open)
-            (commit ~txn-var)))))))
+  (let [[txn-var opts-args] (cond (empty? args) ['*txn* args]
+                                  (keyword? (first args)) ['*txn* args]
+                                  :else [(first args) (rest args)])
+        defaults {:max-attempts 1
+                  :retry-delay-msec 50}
+        opts (merge defaults (args-map opts-args))
+        max-attempts (opts :max-attempts)
+        retry-delay-msec (opts :retry-delay-msec)
+        direct-opts (dissoc opts :max-attempts :retry-delay-msec)]
+    `(let [max-attempts# ~max-attempts
+           retry-delay-msec# ~retry-delay-msec]
+       ;; XXX: The deadlock retry construct requires explicit
+       ;; recursion. Clojure's recur cannot occur inside a catch block, so
+       ;; attempting a retry requires an explicit, stack-eating function call.
+       (letfn [(attempt-txn# [attempt#]
+                 (~(if (= txn-var '*txn*) 'binding 'let)
+                  [~txn-var (begin-txn ~direct-opts)]
+                    (try
+                     ~@body
+                     (when (= @(~txn-var :status) :open)
+                       (commit ~txn-var))
+                     (catch DeadlockException deadlock#
+                       (if (< attempt# max-attempts#)
+                           (do
+                             (rollback ~txn-var)
+                             (Thread/sleep retry-delay-msec#)
+                             (attempt-txn# (inc attempt#)))
+                           (do
+                             (rollback ~txn-var)
+                             (throw (RuntimeException.
+                                     (str "deadlock: " (.getMessage deadlock#)))))))
+                     ;; TODO: Catch a DatabaseException here also?
+                     )))]
+         (attempt-txn# 1)))))
 
 
 
