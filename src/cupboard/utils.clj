@@ -76,6 +76,15 @@
     (deref ref)))
 
 
+(defmacro if*
+  "Implements a Common Lisp style if form, with an implicit do (progn) in the
+   else clause."
+  [condition consequent-expr & alternate-body]
+  (if alternate-body
+      `(if ~condition ~consequent-expr (do ~@alternate-body))
+      `(if ~condition ~consequent-expr)))
+
+
 
 ;; ----------------------------------------------------------------------
 ;; date handling routines
