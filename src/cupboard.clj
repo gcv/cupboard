@@ -407,6 +407,71 @@
       (with-meta value metadata))))
 
 
+(defn- close-cursors [cursors]
+  (doseq [cursor cursors]
+    (db-cursor-close cursor)))
+
+
+(defn query-natural-join [clauses cb shelf-name txn lock-mode]
+  (let [cursors (atom [])
+        shelf (get-shelf cb shelf-name)
+        all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
+    (try
+     ;; open and position all cursors
+     (doseq [[_ indexed-slot indexed-value] clauses]
+       (let [cursor (db-cursor-open (all-indices indexed-slot) :txn txn)]
+         (db-cursor-search cursor indexed-value :exact true :lock-mode lock-mode)
+         (swap! cursors conj cursor)))
+     ;; join
+     (let [jc (db-join-cursor-open @cursors)]
+       (letfn [(join-iter []
+                 (try
+                  (let [res (db-join-cursor-next jc :lock-mode lock-mode)]
+                    (if (empty? res)
+                        (do (db-join-cursor-close jc)
+                            (lazy-seq))
+                        (lazy-seq (cons (db-res->cb-struct res shelf)
+                                        (join-iter)))))
+                  (catch DatabaseException de
+                    (db-join-cursor-close jc)
+                    (throw de))))]
+         ;; Return both the join cursor and the resulting lazy sequence. A
+         ;; consumer of this function (the query macro) should either consume
+         ;; the whole sequence or make sure it closes the cursor.
+         [jc (join-iter)]))
+     (finally
+      ;; XXX: Must be a separate named function, as Clojure does not support
+      ;; iteration inside catch or finally forms.
+      (close-cursors @cursors)))))
+
+
+(defmacro query [& args]
+  (let [[clauses opts-args] (args-&rest-&keys args)
+        defaults {:callback identity
+                  :cupboard '*cupboard*
+                  :shelf-name '*default-shelf-name*
+                  :txn '*txn*
+                  :lock-mode :default}
+        opts (merge defaults opts-args)
+        lock-mode (opts :lock-mode)
+        cb (opts :cupboard)
+        shelf-name (opts :shelf-name)
+        txn (opts :txn)]
+    ;; Check for a natural join. This means that all clauses rely on simple =
+    ;; operations.
+    ;; XXX: Be absolutely sure to close cursors on incompletely-consumed join
+    ;; sequences. Don't forget that the two possible join clauses have different
+    ;; code paths at macroexpansion time, so require separate cleanup calls.
+    ;; XXX: Can code which enforces things like :start-at and :limit be shared
+    ;; between natural joins and range joins?
+    (if (every? #(= '= %) (map first clauses))
+        `(let [[cursor# join-seq#]
+               (query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)]
+           join-seq#)
+        ;; No dice. Hope for the best, and join and iterate cursors by hand.
+        (println "must join by hand"))))
+
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; simple object saving, loading, and deleting
@@ -460,6 +525,9 @@
                               :txn txn))]
         (db-res->cb-struct res shelf))
       ;; anys --- cannot use with-db-cursor on lazy sequences
+      ;; TODO: This contains a resource leak for unexhausted
+      ;; sequences. Implement this in terms of (cb/query (= :slot value))
+      ;; instead.
       (contains? index-any-dbs index-slot)
       (let [idx-cursor (check-txn txn
                          (db-cursor-open (index-any-dbs index-slot) :txn txn))]

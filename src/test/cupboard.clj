@@ -347,6 +347,58 @@
           (is (= (cb/retrieve :login "tj") tj2)))))))
 
 
+(deftest queries
+  (testing "simple comparison cursors"
+    (cb/with-open-cupboard [*cupboard-path*]
+      (let [p1 (cb/make-instance president ["gw" "George" "Washington" 57])
+            p2 (cb/make-instance president ["ja" "John" "Adams" 62])
+            p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58])
+            p4 (cb/make-instance president ["jm1" "James" "Madison" 58])
+            p5 (cb/make-instance president ["jm2" "James" "Monroe" 59])
+            p6 (cb/make-instance president ["jqa" "John" "Adams" 58])
+            p7 (cb/make-instance president ["aj" "Andrew" "Jackson" 62])
+            p8 (cb/make-instance president ["mvb" "Martin" "Van Buren" 55])
+            p9 (cb/make-instance president ["whh" "William" "Harrison" 68])
+            p10 (cb/make-instance president ["jt" "John" "Tyler" 51])]
+
+        (is (= (set (cb/query (= :login "gw"))) #{p1}))
+        (is (= (set (cb/query (= :login "aj"))) #{p7}))
+        (is (= (set (cb/query (= :age 57))) #{p1}))
+        (is (empty? (cb/query (= :age 57) (= :age 62))))
+        (is (= (set (cb/query (= :age 62))) #{p2 p7}))
+        ;; (is (= (set (cb/q<= :age 55)) #{p8 p10}))
+        ;; (is (= (set (cb/q< :age 55)) #{p10}))
+        ;; (is (= (set (cb/query (> :age 60))) #{p2 p7 p9}))
+
+        ;; cb/query takes a list of clauses and and-joins them. If all clauses
+        ;; are =, it uses the (hopefully) optimized db-join-cursor
+        ;; abstraction. Otherwise, it uses temporary databases, and for each
+        ;; clause, creates a successively narrower one with a secondary
+        ;; temporary database indexing the next clause. In this case, it orders
+        ;; its clauses by estimated size, from smallest to largest.
+        ;;
+        ;; Ultimately, it comes down to a single cursor. This final cursor is
+        ;; always lazily evaluated.
+        ;; If a callback is specified, it calls the callback on each entry.
+        ;; If :start-at or :limit are specified, it obeys them.
+        ;; If no callback is specified, it simply returns a sequence.
+        ;; If a callback is specified, it returns a sequence of those results.
+        ;;
+        ;; Keywords such as :cupboard, :shelf-name, :txn can be specified on
+        ;; each clause.
+
+        ;; (cb/query (< :age 60) (> :first-name "J")
+        ;;           :callback (fn [v] (cb/assoc* ...))
+        ;;           :lock-mode :default ; use :rmw for cursors which update the database
+        ;;           :start-at 1
+        ;;           :limit 3
+        ;;           :cupboard cb/*cupboard*
+        ;;           :shelf-name cb/*default-shelf-name*
+        ;;           :txn cb/*txn*)
+
+        ))))
+
+
 ;; (deftest demo
 ;;   (cb/with-open-cupboard [*cb* "/mnt/cupboard-raid-10"]
 ;;     (cb/with-transaction [*txn* :cb *cb*] ; optional keyword argument; can all this be optional?
