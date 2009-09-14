@@ -714,6 +714,36 @@
     (.setCacheMode @(db-cursor :cursor-handle) mode-obj)))
 
 
+(defn db-cursor-scan [db-cursor indexed-value & opts-args]
+  (let [defaults {:comparison-fn =
+                  :direction :forward}
+        opts (merge defaults (args-map opts-args))
+        comparison-fn (opts :comparison-fn)
+        direction (opts :direction)
+        ;; Use this function to extract the value from the database entry which
+        ;; the cursor points to which matters for this scan.
+        res-compval-fn (if (db-cursor-primary? db-cursor)
+                           (fn [res] (first res))
+                           (let [key-creator-fn (-> db-cursor :db :key-creator-fn)]
+                             (fn [res] (key-creator-fn (second res)))))]
+    (letfn [(scan-to-first []
+              (let [res (atom (db-cursor-search db-cursor indexed-value :exact false))]
+                (loop []
+                  (when-not (empty? @res)
+                    (if* (comparison-fn (res-compval-fn @res) indexed-value)
+                         @res
+                         (reset! res (db-cursor-next db-cursor :direction direction))
+                         (recur))))))
+            (scan [prev-res]
+              (if (or (empty? prev-res)
+                      (not (comparison-fn (res-compval-fn prev-res) indexed-value)))
+                  (lazy-seq)
+                  (lazy-seq (cons prev-res
+                                  (scan (db-cursor-next
+                                         db-cursor :direction direction))))))]
+      (scan (scan-to-first)))))
+
+
 (defn db-join-cursor-open [db-cursors & conf-args]
   (let [defaults {:no-sort false}
         conf (merge defaults (args-map conf-args))

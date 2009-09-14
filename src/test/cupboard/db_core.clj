@@ -292,6 +292,53 @@
                 (is (empty? (db-join-cursor-next j)))))))))))
 
 
+(deftest cursor-scans
+  (with-db-sec [idx1 *db-env* *db* "idx1"
+                :allow-create true
+                :key-creator-fn :a
+                :sorted-duplicates true]
+    ;; (1 2 3 3 3 5 5 7 nil 11 12)
+    (db-put *db* 1 {:a 1})
+    (db-put *db* 2 {:a 2})
+    (db-put *db* 3 {:a 3})
+    (db-put *db* 4 {:a 3})
+    (db-put *db* 5 {:a 3})
+    (db-put *db* 6 {:a 5})
+    (db-put *db* 7 {:a 5})
+    (db-put *db* 8 {:a 7})
+    (db-put *db* 11 {:a 11})
+    (db-put *db* 12 {:a 12})
+    (with-db-cursor [cur1 idx1]
+      (is (= (db-cursor-scan cur1 1)
+             [ [1 {:a 1}] ]))
+      (is (= (db-cursor-scan cur1 3)
+             [ [3 {:a 3}] [4 {:a 3}] [5 {:a 3}] ]))
+      (is (empty? (db-cursor-scan cur1 6)))
+      (is (= (db-cursor-scan cur1 4 :comparison-fn < :direction :back)
+             [ [5 {:a 3}] [4 {:a 3}] [3 {:a 3}] [2 {:a 2}] [1 {:a 1}] ]))
+      (is (= (db-cursor-scan cur1 5 :comparison-fn <= :direction :back)
+             [ [6 {:a 5}] [5 {:a 3}] [4 {:a 3}] [3 {:a 3}] [2 {:a 2}] [1 {:a 1}] ]))
+      (is (= (db-cursor-scan cur1 4 :comparison-fn >)
+             [ [6 {:a 5}] [7 {:a 5}] [8 {:a 7}] [11 {:a 11}] [12 {:a 12}] ]))
+      (is (= (db-cursor-scan cur1 2 :comparison-fn >)
+             [ [3 {:a 3}] [4 {:a 3}] [5 {:a 3}] [6 {:a 5}] [7 {:a 5}]
+               [8 {:a 7}] [11 {:a 11}] [12 {:a 12}] ]))
+      (is (= (take 2 (db-cursor-scan cur1 2 :comparison-fn >=))
+             [ [2 {:a 2}] [3 {:a 3}] ])))
+    (with-db-cursor [cur2 *db*]
+      (is (= (db-cursor-scan cur2 4) [ [4 {:a 3}] ]))
+      (is (empty? (db-cursor-scan cur2 10)))
+      (is (= (db-cursor-scan cur2 10 :comparison-fn < :direction :back)
+             [ [8 {:a 7}] [7 {:a 5}] [6 {:a 5}] [5 {:a 3}] [4 {:a 3}]
+               [3 {:a 3}] [2 {:a 2}] [1 {:a 1}] ]))
+      (is (= (db-cursor-scan cur2 10 :comparison-fn >)
+             [ [11 {:a 11}] [12 {:a 12}] ]))
+      (is (= (db-cursor-scan cur2 11 :comparison-fn >=)
+             [ [11 {:a 11}] [12 {:a 12}] ]))
+      (is (= (db-cursor-scan cur2 11 :comparison-fn >)
+             [ [12 {:a 12}] ])))))
+
+
 (deftest transactions
   (let [path (make-temp-dir)]
     (with-db-env [e path :allow-create true :transactional true]
