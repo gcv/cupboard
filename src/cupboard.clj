@@ -113,7 +113,7 @@
         index-db-name (str (shelf :name) index-name)
         all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
     (if (and (contains? all-indices index-name)
-             (not (nil? @(-> all-indices index-name :db-handle))))
+             (not (nil? @(-> all-indices index-name :db-sec-handle))))
         ;; index already open, just return it
         (all-indices index-name)
         ;; else, need to open the index
@@ -125,7 +125,7 @@
               index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
                                     index-db-name index-open-opts)]
           (db-put @(cb :shelves-db) index-db-name index-opts)
-          (swap! (shelf (if (.. @(index-db :db-handle) getConfig getSortedDuplicates)
+          (swap! (shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
                             :index-any-dbs
                             :index-unique-dbs))
                  assoc index-name index-db)

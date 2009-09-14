@@ -16,28 +16,36 @@
 ;;; useful structs
 ;;; ----------------------------------------------------------------------------
 
-(defstruct* db-env
+(defstruct db-env
   :dir
   :transactional
   :env-handle)
 
 
-(defstruct* txn
+(defstruct txn
   :status
   :txn-handle)
 
 
-(defstruct* db
+(defstruct db
   :name
   :sorted-duplicates
   :db-handle)
 
 
-(defstruct* db-cursor
+(defstruct db-sec
+  :name
+  :key-creator-fn
+  :sorted-duplicates
+  :db-sec-handle)
+
+
+(defstruct db-cursor
+  :db
   :cursor-handle)
 
 
-(defstruct* db-join-cursor
+(defstruct db-join-cursor
   :cursors
   :join-cursor-handle)
 
@@ -45,7 +53,15 @@
 (defn db-primary?
   "Returns true if the given struct represents a primary database."
   [s]
-  (= Database (class @(s :db-handle))))
+  (and (contains? s :db-handle)
+       (= Database (class @(s :db-handle)))))
+
+
+(defn db-secondary?
+  "Returns true if the given struct represents a primary database."
+  [s]
+  (and (contains? s :db-sec-handle)
+       (= SecondaryDatabase (class @(s :db-sec-handle)))))
 
 
 (defn db-cursor-primary?
@@ -464,10 +480,11 @@
                   :allow-populate true
                   :transactional (db-env :transactional)}
         conf (merge defaults (args-map conf-args))
+        key-creator-fn (conf :key-creator-fn)
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]
                         (let [data (unmarshal-db-entry data-entry)
-                              sec-data ((conf :key-creator-fn) data)]
+                              sec-data (key-creator-fn data)]
                           (if sec-data
                               (do (marshal-db-entry sec-data result-entry)
                                   true)
@@ -480,8 +497,9 @@
                    (.setTransactional (conf :transactional)))
         #^Environment env-handle @(db-env :env-handle)
         #^Database db-primary-handle @(db-primary :db-handle)]
-    (struct db
+    (struct db-sec
             name
+            key-creator-fn
             (conf :sorted-duplicates)
             (atom (.openSecondaryDatabase env-handle
                                           (deref* (-> conf :txn :txn-handle))
@@ -489,8 +507,8 @@
 
 
 (defn db-sec-close [db-sec]
-  (.close #^SecondaryDatabase @(db-sec :db-handle))
-  (reset! (db-sec :db-handle) nil))
+  (.close #^SecondaryDatabase @(db-sec :db-sec-handle))
+  (reset! (db-sec :db-sec-handle) nil))
 
 
 (def-with-db-macro with-db-sec db-sec-open db-sec-close)
@@ -507,7 +525,7 @@
         search-key-entry (marshal-db-entry search-key)
         key-entry (marshal-db-entry* opts :key)
         data-entry (marshal-db-entry* opts :data)
-        #^SecondaryDatabase db-sec-handle @(db-sec :db-handle)
+        #^SecondaryDatabase db-sec-handle @(db-sec :db-sec-handle)
         result (.get db-sec-handle
                      (deref* (-> opts :txn :txn-handle))
                      search-key-entry key-entry data-entry
@@ -519,7 +537,7 @@
   (let [defaults {:txn nil}
         opts (merge defaults (args-map opts-args))
         search-entry (marshal-db-entry search-key)
-        #^SecondaryDatabase db-sec-handle @(db-sec :db-handle)]
+        #^SecondaryDatabase db-sec-handle @(db-sec :db-sec-handle)]
     (.delete db-sec-handle (deref* (-> opts :txn :txn-handle)) search-entry)))
 
 
@@ -541,12 +559,13 @@
                      (= (conf :isolation) :read-uncommitted) (.setReadUncommitted co true)
                      (= (conf :isolation) :read-committed) (.setReadCommitted co true)))]
     (struct db-cursor
+            db
             (atom
              (if (db-primary? db)
                  (.openCursor #^Database @(db :db-handle)
                               (deref* (-> conf :txn :txn-handle))
                               conf-obj)
-                 (.openSecondaryCursor #^SecondaryDatabase @(db :db-handle)
+                 (.openSecondaryCursor #^SecondaryDatabase @(db :db-sec-handle)
                                        (deref* (-> conf :txn :txn-handle))
                                        conf-obj))))))
 
