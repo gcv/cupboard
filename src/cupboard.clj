@@ -386,6 +386,29 @@
 
 
 ;;; ----------------------------------------------------------------------------
+;;; queries
+;;; ----------------------------------------------------------------------------
+
+(defn- db-res->cb-struct
+  "Takes a raw result returned from a db-core routine and converts it into a
+   map with metadata like the ones created by make-instance."
+  ;; TODO: This should create struct-map instances instead of hash-map
+  ;; instances.
+  [[pkey value] shelf]
+  (when-not (nil? value)
+    (let [index-unique-dbs @(shelf :index-unique-dbs)
+          index-any-dbs @(shelf :index-any-dbs)
+          value-key-set (set (keys value))
+          metadata {:primary-key pkey
+                    :index-uniques (intersection (set (keys index-unique-dbs))
+                                                 value-key-set)
+                    :index-anys (intersection (set (keys index-any-dbs))
+                                              value-key-set)}]
+      (with-meta value metadata))))
+
+
+
+;;; ----------------------------------------------------------------------------
 ;;; simple object saving, loading, and deleting
 ;;; ----------------------------------------------------------------------------
 
@@ -427,44 +450,36 @@
         shelf (get-shelf cb (opts :shelf-name))
         index-unique-dbs @(shelf :index-unique-dbs)
         index-any-dbs @(shelf :index-any-dbs)]
-    (letfn [(res->data [[pkey value]]
-              (when-not (nil? value)
-                (let [value-key-set (set (keys value))
-                      metadata {:primary-key pkey
-                                :index-uniques (intersection (set (keys index-unique-dbs))
-                                                             value-key-set)
-                                :index-anys (intersection (set (keys index-any-dbs))
-                                                          value-key-set)}]
-                  (with-meta value metadata))))]
-      ;; If the index-slot is in :index-uniques, retrieve it and return as is.
-      ;; If the index-slot is in :index-anys, retrieve a lazy sequence.
-      (cond
-        ;; uniques
-        (contains? index-unique-dbs index-slot)
-        (let [res (check-txn txn
-                    (db-sec-get (index-unique-dbs index-slot) indexed-value
-                                :txn txn))]
-          (res->data res))
-        ;; anys --- cannot use with-db-cursor on lazy sequences
-        (contains? index-any-dbs index-slot)
-        (let [idx-cursor (check-txn txn
-                           (db-cursor-open (index-any-dbs index-slot) :txn txn))]
-          (letfn [(idx-scan [cursor-fn & cursor-fn-args]
-                    (try
-                     (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]
-                       (if (or (empty? res)
-                               (not (= ((second res) index-slot) indexed-value)))
-                           (do (db-cursor-close idx-cursor)
-                               (lazy-seq))
-                           (lazy-seq (cons (res->data res) (idx-scan db-cursor-next)))))
-                     (catch DatabaseException de
-                       (db-cursor-close idx-cursor)
-                       (throw de))))]
-            (idx-scan db-cursor-search indexed-value)))
-        ;; not retrieving an indexed slot
-        :else (throw (RuntimeException. (str "attempting retrieve by slot "
-                                             index-slot ", not indexed on shelf "
-                                             (shelf :name))))))))
+    ;; If the index-slot is in :index-uniques, retrieve it and return as is.
+    ;; If the index-slot is in :index-anys, retrieve a lazy sequence.
+    (cond
+      ;; uniques
+      (contains? index-unique-dbs index-slot)
+      (let [res (check-txn txn
+                  (db-sec-get (index-unique-dbs index-slot) indexed-value
+                              :txn txn))]
+        (db-res->cb-struct res shelf))
+      ;; anys --- cannot use with-db-cursor on lazy sequences
+      (contains? index-any-dbs index-slot)
+      (let [idx-cursor (check-txn txn
+                         (db-cursor-open (index-any-dbs index-slot) :txn txn))]
+        (letfn [(idx-scan [cursor-fn & cursor-fn-args]
+                          (try
+                           (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]
+                             (if (or (empty? res)
+                                     (not (= ((second res) index-slot) indexed-value)))
+                                 (do (db-cursor-close idx-cursor)
+                                     (lazy-seq))
+                                 (lazy-seq (cons (db-res->cb-struct res shelf)
+                                                 (idx-scan db-cursor-next)))))
+                           (catch DatabaseException de
+                             (db-cursor-close idx-cursor)
+                             (throw de))))]
+          (idx-scan db-cursor-search indexed-value)))
+      ;; not retrieving an indexed slot
+      :else (throw (RuntimeException. (str "attempting retrieve by slot "
+                                           index-slot ", not indexed on shelf "
+                                           (shelf :name)))))))
 
 
 ;; assoc! would be a better name, but Clojure's transient data structures have
