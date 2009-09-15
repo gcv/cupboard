@@ -715,11 +715,18 @@
 
 
 (defn db-cursor-scan [db-cursor indexed-value & opts-args]
-  (let [defaults {:comparison-fn =
-                  :direction :forward}
+  (let [defaults {:comparison-fn =}
         opts (merge defaults (args-map opts-args))
         comparison-fn (opts :comparison-fn)
-        direction (opts :direction)
+        direction (if (contains? opts :direction)
+                      (opts :direction)
+                      (condp = comparison-fn
+                        = :forward
+                        > :forward
+                        >= :forward
+                        < :back
+                        <= :back
+                        :forward))
         ;; Use this function to extract the value from the database entry which
         ;; the cursor points to which matters for this scan.
         res-compval-fn (if (db-cursor-primary? db-cursor)
