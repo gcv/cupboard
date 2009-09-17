@@ -379,31 +379,8 @@
         ;; TODO: Test :callback functionality! It should be possible to use it
         ;; :callback functions to delete or modify entries.
 
-        ;; cb/query takes a list of clauses and and-joins them. If all clauses
-        ;; are =, it uses the (hopefully) optimized db-join-cursor
-        ;; abstraction. Otherwise, it uses temporary databases, and for each
-        ;; clause, creates a successively narrower one with a secondary
-        ;; temporary database indexing the next clause. In this case, it orders
-        ;; its clauses by estimated size, from smallest to largest.
-        ;;
-        ;; Ultimately, it comes down to a single cursor. This final cursor is
-        ;; always lazily evaluated.
-        ;; If a callback is specified, it calls the callback on each entry.
-        ;; If :start-at or :limit are specified, it obeys them.
-        ;; If no callback is specified, it simply returns a sequence.
-        ;; If a callback is specified, it returns a sequence of those results.
-        ;;
-        ;; Keywords such as :cupboard, :shelf-name, :txn can be specified on
-        ;; each clause.
-
-        ;; (cb/query (< :age 60) (> :first-name "J")
-        ;;           :callback (fn [v] (cb/assoc* ...))
-        ;;           :lock-mode :default ; use :rmw for cursors which update the database
-        ;;           :start-at 1
-        ;;           :limit 3
-        ;;           :cupboard cb/*cupboard*
-        ;;           :shelf-name cb/*default-shelf-name*
-        ;;           :txn cb/*txn*)
+        ;; TODO: Verify laziness of cb/query intermediate results. (How? Delayed
+        ;; printlns?)
 
         ))))
 

@@ -455,10 +455,6 @@
 
 
 (defn query-range-join [clauses cb shelf-name txn lock-mode]
-  ;; TODO: Don't forget about lock-mode.
-  ;; TODO: Verify laziness here.
-  ;; This needs to return a lazy sequence consisting only of entries which
-  ;; satisfy the criteria in clauses.
   (let [shelf (get-shelf cb shelf-name)
         all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))
         dominating-clause (determine-dominating-clause clauses)
@@ -473,7 +469,8 @@
      (let [res (filter check-fn
                        (db-cursor-scan main-cursor
                                        dc-val
-                                       :comparison-fn (var-get (resolve dc-fn-symbol))))
+                                       :comparison-fn (var-get (resolve dc-fn-symbol))
+                                       :lock-mode lock-mode))
            final-res (map #(db-res->cb-struct % shelf) res)]
        ;; Return both the main cursor and the resulting lazy sequence. A
        ;; consumer of this function (the query macro) should either consume the
