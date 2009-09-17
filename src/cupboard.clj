@@ -428,8 +428,7 @@
                  (try
                   (let [res (db-join-cursor-next jc :lock-mode lock-mode)]
                     (if (empty? res)
-                        (do (db-join-cursor-close jc)
-                            (lazy-seq))
+                        (lazy-seq)
                         (lazy-seq (cons (db-res->cb-struct res shelf)
                                         (join-iter)))))
                   (catch DatabaseException de
@@ -469,13 +468,20 @@
                              (let [f (var-get (resolve f-symbol))]
                                (f ((second entry) k) v)))
                            clauses))
-        main-cursor (db-cursor-open (all-indices dc-idx) :txn txn)
-        raw-res (filter check-fn
-                        (db-cursor-scan main-cursor
-                                        dc-val
-                                        :comparison-fn (var-get (resolve dc-fn-symbol))))
-        final-res (map #(db-res->cb-struct % shelf) raw-res)]
-    [main-cursor final-res]))
+        main-cursor (db-cursor-open (all-indices dc-idx) :txn txn)]
+    (try
+     (let [res (filter check-fn
+                       (db-cursor-scan main-cursor
+                                       dc-val
+                                       :comparison-fn (var-get (resolve dc-fn-symbol))))
+           final-res (map #(db-res->cb-struct % shelf) res)]
+       ;; Return both the main cursor and the resulting lazy sequence. A
+       ;; consumer of this function (the query macro) should either consume the
+       ;; whole sequence or make sure it closes the cursor.
+       [main-cursor final-res])
+     (catch DatabaseException de
+       (db-cursor-close main-cursor)
+       (throw de)))))
 
 
 (defmacro query [& args]
@@ -493,20 +499,23 @@
         cb (opts :cupboard)
         shelf-name (opts :shelf-name)
         txn (opts :txn)]
-    ;; Check for a natural join. This means that all clauses rely on simple =
-    ;; operations.
     ;; XXX: Be absolutely sure to close cursors on incompletely-consumed join
     ;; sequences. Don't forget that the two possible join clauses have different
     ;; code paths at macroexpansion time, so require separate cleanup calls.
     ;; XXX: Can code which enforces things like :start-at, :limit, and :callback
     ;; be shared between natural joins and range joins?
     (if (every? #(= '= %) (map first clauses))
-        `(let [[join-cursor# res#]
-               (query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)]
-           res#)
+        ;; Use Berkeley DB's native join cursors.
+        `(let [[join-cursor# raw-res#] (query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
+               transformed-res# (map ~callback raw-res#)
+               limit# ~limit
+               limited-res# (doall (if (nil? limit#)
+                                       transformed-res#
+                                       (take limit# transformed-res#)))]
+           (db-join-cursor-close join-cursor#)
+           limited-res#)
         ;; No dice. Hope for the best, and join and iterate cursors by hand.
-        `(let [[cursor# raw-res#]
-               (query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
+        `(let [[cursor# raw-res#] (query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
                transformed-res# (map ~callback raw-res#)
                limit# ~limit
                limited-res# (doall (if (nil? limit#)
