@@ -486,6 +486,7 @@
 
 (defmacro query [& args]
   (let [[clauses opts-args] (args-&rest-&keys args)
+        use-natural-join (every? #(= '= %) (map first clauses))
         defaults {:limit nil
                   :callback identity
                   :cupboard '*cupboard*
@@ -499,30 +500,17 @@
         cb (opts :cupboard)
         shelf-name (opts :shelf-name)
         txn (opts :txn)]
-    ;; XXX: Be absolutely sure to close cursors on incompletely-consumed join
-    ;; sequences. Don't forget that the two possible join clauses have different
-    ;; code paths at macroexpansion time, so require separate cleanup calls.
-    ;; XXX: Can code which enforces things like :start-at, :limit, and :callback
-    ;; be shared between natural joins and range joins?
-    (if (every? #(= '= %) (map first clauses))
-        ;; Use Berkeley DB's native join cursors.
-        `(let [[join-cursor# raw-res#] (query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
-               transformed-res# (map ~callback raw-res#)
-               limit# ~limit
-               limited-res# (doall (if (nil? limit#)
-                                       transformed-res#
-                                       (take limit# transformed-res#)))]
-           (db-join-cursor-close join-cursor#)
-           limited-res#)
-        ;; No dice. Hope for the best, and join and iterate cursors by hand.
-        `(let [[cursor# raw-res#] (query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
-               transformed-res# (map ~callback raw-res#)
-               limit# ~limit
-               limited-res# (doall (if (nil? limit#)
-                                       transformed-res#
-                                       (take limit# transformed-res#)))]
-           (db-cursor-close cursor#)
-           limited-res#))))
+    `(let [[cursor# raw-res#]
+           ~(if use-natural-join
+                `(query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
+                `(query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode))
+           xres# (map ~callback raw-res#)
+           limit# ~limit
+           lres# (doall (if (nil? limit#)
+                            xres#
+                            (take limit# xres#)))]
+       (~(if use-natural-join 'db-join-cursor-close 'db-cursor-close) cursor#)
+       lres#)))
 
 
 
