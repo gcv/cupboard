@@ -726,6 +726,7 @@
                         >= :forward
                         < :back
                         <= :back
+                        starts-with :forward
                         :forward))
         ;; Use this function to extract the value from the database entry which
         ;; the cursor points to which matters for this scan.

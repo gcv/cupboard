@@ -85,6 +85,10 @@
       `(if ~condition ~consequent-expr)))
 
 
+(defn starts-with [haystack needle]
+  (.startsWith haystack needle))
+
+
 
 ;; ----------------------------------------------------------------------
 ;; date handling routines
