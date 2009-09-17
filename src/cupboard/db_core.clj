@@ -715,8 +715,10 @@
 
 
 (defn db-cursor-scan [db-cursor indexed-value & opts-args]
-  (let [defaults {:comparison-fn =}
+  (let [defaults {:lock-mode :default
+                  :comparison-fn =}
         opts (merge defaults (args-map opts-args))
+        lock-mode (opts :lock-mode)
         comparison-fn (opts :comparison-fn)
         direction (if (contains? opts :direction)
                       (opts :direction)
@@ -740,7 +742,9 @@
                   (when-not (empty? @res)
                     (if* (comparison-fn (res-compval-fn @res) indexed-value)
                          @res
-                         (reset! res (db-cursor-next db-cursor :direction direction))
+                         (reset! res (db-cursor-next db-cursor
+                                                     :direction direction
+                                                     :lock-mode lock-mode))
                          (recur))))))
             (scan [prev-res]
               (if (or (empty? prev-res)
