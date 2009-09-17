@@ -366,11 +366,18 @@
         (is (= (set (cb/query (= :age 57))) #{p1}))
         (is (empty? (cb/query (= :age 57) (= :age 62))))
         (is (= (set (cb/query (= :age 62))) #{p2 p7}))
-        ;; (is (= (set (cb/q<= :age 55)) #{p8 p10}))
-        ;; (is (= (set (cb/q< :age 55)) #{p10}))
-        ;; (is (= (set (cb/query (> :age 60))) #{p2 p7 p9}))
+        (is (= (set (cb/query (<= :age 55))) #{p8 p10}))
+        (is (= (set (cb/query (< :age 55))) #{p10}))
+        (is (= (set (cb/query (> :age 60))) #{p2 p7 p9}))
 
         (is (= (set (cb/query (< :age 60) (starts-with :first-name "J"))) #{p4 p5 p6 p10}))
+        (is (= (set (cb/query (< :age 60) (starts-with :first-name "Ja"))) #{p4 p5}))
+        (is (= (set (cb/query (< :age 60) (= :first-name "John"))) #{p6 p10}))
+        (is (= (set (cb/query (= :first-name "John"))) #{p2 p6 p10}))
+        (is (= (count (cb/query (< :age 60) (starts-with :first-name "J") :limit 2)) 2))
+
+        ;; TODO: Test :callback functionality! It should be possible to use it
+        ;; :callback functions to delete or modify entries.
 
         ;; cb/query takes a list of clauses and and-joins them. If all clauses
         ;; are =, it uses the (hopefully) optimized db-join-cursor

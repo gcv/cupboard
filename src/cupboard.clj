@@ -480,12 +480,15 @@
 
 (defmacro query [& args]
   (let [[clauses opts-args] (args-&rest-&keys args)
-        defaults {:callback identity
+        defaults {:limit nil
+                  :callback identity
                   :cupboard '*cupboard*
                   :shelf-name '*default-shelf-name*
                   :txn '*txn*
                   :lock-mode :default}
         opts (merge defaults opts-args)
+        limit (opts :limit)
+        callback (opts :callback)
         lock-mode (opts :lock-mode)
         cb (opts :cupboard)
         shelf-name (opts :shelf-name)
@@ -498,13 +501,19 @@
     ;; XXX: Can code which enforces things like :start-at, :limit, and :callback
     ;; be shared between natural joins and range joins?
     (if (every? #(= '= %) (map first clauses))
-        `(let [[cursor# join-seq#]
+        `(let [[join-cursor# res#]
                (query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)]
-           join-seq#)
+           res#)
         ;; No dice. Hope for the best, and join and iterate cursors by hand.
-        `(let [[cursor# join-seq#]
-               (query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)]
-           join-seq#))))
+        `(let [[cursor# raw-res#]
+               (query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
+               transformed-res# (map ~callback raw-res#)
+               limit# ~limit
+               limited-res# (doall (if (nil? limit#)
+                                       transformed-res#
+                                       (take limit# transformed-res#)))]
+           (db-cursor-close cursor#)
+           limited-res#))))
 
 
 
