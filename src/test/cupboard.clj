@@ -370,6 +370,8 @@
         ;; (is (= (set (cb/q< :age 55)) #{p10}))
         ;; (is (= (set (cb/query (> :age 60))) #{p2 p7 p9}))
 
+        (is (= (set (cb/query (< :age 60) (starts-with :first-name "J"))) #{p4 p5 p6 p10}))
+
         ;; cb/query takes a list of clauses and and-joins them. If all clauses
         ;; are =, it uses the (hopefully) optimized db-join-cursor
         ;; abstraction. Otherwise, it uses temporary databases, and for each

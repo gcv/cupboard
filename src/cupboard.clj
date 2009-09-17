@@ -445,6 +445,39 @@
       (close-cursors @cursors)))))
 
 
+(defn- determine-dominating-clause [clauses]
+  ;; XXX: Clearly room for improvement here. Clauses should be ordered from
+  ;; smallest remaining key range to largest, since iterating over the smallest
+  ;; dataset puts an upper bound on the total number of iterations required.
+  ;; Unfortunately, Berkeley DB JE does not support a Database/getKeyRange
+  ;; function which would help determine approximately where in an index a
+  ;; specified key value resides. Berkeley DB Core does have this functionality.
+  (first clauses))
+
+
+(defn query-range-join [clauses cb shelf-name txn lock-mode]
+  ;; TODO: Don't forget about lock-mode.
+  ;; TODO: Verify laziness here.
+  ;; This needs to return a lazy sequence consisting only of entries which
+  ;; satisfy the criteria in clauses.
+  (let [shelf (get-shelf cb shelf-name)
+        all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))
+        dominating-clause (determine-dominating-clause clauses)
+        [dc-fn-symbol dc-idx dc-val] dominating-clause
+        check-fn (fn [entry] ; Make sure entry satisfies all clauses.
+                   (every? (fn [[f-symbol k v]]
+                             (let [f (var-get (resolve f-symbol))]
+                               (f ((second entry) k) v)))
+                           clauses))
+        main-cursor (db-cursor-open (all-indices dc-idx) :txn txn)
+        raw-res (filter check-fn
+                        (db-cursor-scan main-cursor
+                                        dc-val
+                                        :comparison-fn (var-get (resolve dc-fn-symbol))))
+        final-res (map #(db-res->cb-struct % shelf) raw-res)]
+    [main-cursor final-res]))
+
+
 (defmacro query [& args]
   (let [[clauses opts-args] (args-&rest-&keys args)
         defaults {:callback identity
@@ -462,14 +495,16 @@
     ;; XXX: Be absolutely sure to close cursors on incompletely-consumed join
     ;; sequences. Don't forget that the two possible join clauses have different
     ;; code paths at macroexpansion time, so require separate cleanup calls.
-    ;; XXX: Can code which enforces things like :start-at and :limit be shared
-    ;; between natural joins and range joins?
+    ;; XXX: Can code which enforces things like :start-at, :limit, and :callback
+    ;; be shared between natural joins and range joins?
     (if (every? #(= '= %) (map first clauses))
         `(let [[cursor# join-seq#]
                (query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)]
            join-seq#)
         ;; No dice. Hope for the best, and join and iterate cursors by hand.
-        (println "must join by hand"))))
+        `(let [[cursor# join-seq#]
+               (query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)]
+           join-seq#))))
 
 
 
