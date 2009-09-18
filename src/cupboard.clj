@@ -481,27 +481,32 @@
        (throw de)))))
 
 
+;; XXX: Revisit this when Clojure's scopes feature comes to life.
+;; http://www.assembla.com/spaces/clojure/tickets/2-Scopes
 (defmacro query [& args]
   (let [[clauses opts-args] (args-&rest-&keys args)
-        use-natural-join (every? #(= '= %) (map first clauses))
         defaults {:limit nil
-                  :callback identity
                   :cupboard '*cupboard*
                   :shelf-name '*default-shelf-name*
                   :txn '*txn*
                   :lock-mode :default}
         opts (merge defaults opts-args)
+        use-natural-join (and (not (contains? opts :callback))
+                              (every? #(= '= %) (map first clauses)))
+        callback (if (contains? opts :callback)
+                     (opts :callback)
+                     `(fn [c# v#] v#))
         limit (opts :limit)
-        callback (opts :callback)
         lock-mode (opts :lock-mode)
         cb (opts :cupboard)
         shelf-name (opts :shelf-name)
         txn (opts :txn)]
-    `(let [[cursor# raw-res#]
+    `(let [callback# ~callback
+           [cursor# raw-res#]
            ~(if use-natural-join
                 `(query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
                 `(query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode))
-           xres# (map ~callback raw-res#)
+           xres# (map (fn [x#] (callback# cursor# x#)) raw-res#)
            limit# ~limit
            lres# (doall (if (nil? limit#)
                             xres#
