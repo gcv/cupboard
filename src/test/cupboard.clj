@@ -250,15 +250,15 @@
        (testing "deadlock resolution, both threads commit"
          (.start (Thread. (fn []
                             (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 10]
-                              (cb/assoc* gw :bank-acct 1 :cupboard cb)
+                              (cb/passoc! gw :bank-acct 1 :cupboard cb)
                               (Thread/sleep 5)
-                              (cb/assoc* ja :bank-acct 2 :cupboard cb))
+                              (cb/passoc! ja :bank-acct 2 :cupboard cb))
                             (reset! done-1 true))))
          (.start (Thread. (fn []
                             (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 50]
-                              (cb/assoc* ja :bank-acct 3 :cupboard cb)
+                              (cb/passoc! ja :bank-acct 3 :cupboard cb)
                               (Thread/sleep 5)
-                              (cb/assoc* gw :bank-acct 4 :cupboard cb))
+                              (cb/passoc! gw :bank-acct 4 :cupboard cb))
                             (reset! done-2 true))))
          ;; wait for threads to complete
          (loop [i 0]
@@ -274,17 +274,17 @@
          (reset! done-2 false)
          (.start (Thread. (fn []
                             (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 100]
-                              (cb/assoc* gw :bank-acct 5 :cupboard cb)
+                              (cb/passoc! gw :bank-acct 5 :cupboard cb)
                               (Thread/sleep 100)
-                              (cb/assoc* ja :bank-acct 6 :cupboard cb))
+                              (cb/passoc! ja :bank-acct 6 :cupboard cb))
                             (reset! done-1 true))))
          (.start (Thread. (fn []
                             (is (thrown? RuntimeException
                                   (try
                                    (with-txn [:cupboard cb :max-attempts 1]
-                                     (cb/assoc* ja :bank-acct 7 :cupboard cb)
+                                     (cb/passoc! ja :bank-acct 7 :cupboard cb)
                                      (Thread/sleep 100)
-                                     (cb/assoc* gw :bank-acct 8 :cupboard cb))
+                                     (cb/passoc! gw :bank-acct 8 :cupboard cb))
                                    (finally
                                     (reset! done-2 true))))))))
          ;; wait for threads to complete
@@ -299,7 +299,7 @@
       (close-cupboard cb)))))
 
 
-(deftest assoc*-dissoc*
+(deftest passoc!-pdissoc!
   (let [date-gw (iso8601->date "1732-02-22 00:00:00Z")
         gw1 {:login "gw" :first-name "George" :last-name "Washington"
              :age 57 :bank-acct nil}
@@ -318,32 +318,32 @@
         tj3 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3
              :birthday date-tj}]
     (cb/with-open-cupboard [*cupboard-path*]
-      (testing "simple assoc*-dissoc* operations"
+      (testing "simple passoc!-pdissoc! operations"
         (let [p (atom (cb/make-instance president ["gw" "George" "Washington" 57]))]
           (is (= (cb/retrieve :login "gw") gw1))
-          (reset! p (cb/assoc* @p :bank-acct 1))
+          (reset! p (cb/passoc! @p :bank-acct 1))
           (is (= (cb/retrieve :login "gw") gw2))
-          (reset! p (cb/assoc* @p :birthday date-gw))
+          (reset! p (cb/passoc! @p :birthday date-gw))
           (is (= (cb/retrieve :login "gw") gw3))
-          (reset! p (cb/dissoc* @p :birthday))
+          (reset! p (cb/pdissoc! @p :birthday))
           (is (= (cb/retrieve :login "gw") gw2))))
-      (testing "assoc*-dissoc* operations on non-default shelves"
+      (testing "passoc!-pdissoc! operations on non-default shelves"
         (let [p (atom (cb/make-instance president ["ja" "John" "Adams" 62]
                                         :shelf-name "presidents"))]
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja1))
-          (reset! p (cb/assoc* @p :bank-acct 2))
+          (reset! p (cb/passoc! @p :bank-acct 2))
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2))
-          (reset! p (cb/assoc* @p :birthday date-ja))
+          (reset! p (cb/passoc! @p :birthday date-ja))
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja3))
-          (reset! p (cb/dissoc* @p :birthday))
+          (reset! p (cb/pdissoc! @p :birthday))
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2))))
-      (testing "assoc*-dissoc* operations with multiple operands"
+      (testing "passoc!-pdissoc! operations with multiple operands"
         (let [p (atom (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))]
           (is (= (cb/retrieve :login "tj") tj1))
-          (reset! p (cb/assoc* @p [:bank-acct 3 :birthday date-tj]))
+          (reset! p (cb/passoc! @p [:bank-acct 3 :birthday date-tj]))
           (is (= (cb/retrieve :login "tj") tj3))
-          (reset! p (cb/assoc* @p [:nonce1 1 :nonce2 2]))
-          (reset! p (cb/dissoc* @p [:birthday :nonce1 :nonce2]))
+          (reset! p (cb/passoc! @p [:nonce1 1 :nonce2 2]))
+          (reset! p (cb/pdissoc! @p [:birthday :nonce1 :nonce2]))
           (is (= (cb/retrieve :login "tj") tj2)))))))
 
 

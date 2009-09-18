@@ -593,13 +593,11 @@
                                            (shelf :name)))))))
 
 
-;; assoc! would be a better name, but Clojure's transient data structures have
-;; claimed it.
-(defn assoc*
+(defn passoc!
   "Just like clojure.core/assoc, but works on objects defined with defpersist
    and created with make-instance. Automatically saves modifications.
-   Two forms: (assoc* obj new-key new-value & options)
-              (assoc* obj [k1 v1 k2 v2 ...] & options)"
+   Two forms: (passoc! obj new-key new-value & options)
+              (passoc! obj [k1 v1 k2 v2 ...] & options)"
   [obj & args]
   (if (sequential? (first args))
       ;; long assoc form, permitting multiple key-value pairs
@@ -612,11 +610,11 @@
         (save (assoc obj key value) opts))))
 
 
-(defn dissoc*
+(defn pdissoc!
   "Just like clojure.core/dissoc, but works on objects defined with defpersist
    and created with make-instance. Automatically saves modifications.
-   Two forms: (dissoc* obj key & options)
-              (dissoc* obj [k1 k2 ...] & options)"
+   Two forms: (pdissoc! obj key & options)
+              (pdissoc! obj [k1 k2 ...] & options)"
   [obj & args]
   (if (sequential? (first args))
       ;; long dissoc form, permitting multiple key-value pairs
