@@ -730,6 +730,8 @@
                         <= :back
                         starts-with :forward
                         :forward))
+        ;; only two exact-matching comparison functions: = and starts-with
+        exact (or (= comparison-fn =) (= comparison-fn starts-with))
         ;; Use this function to extract the value from the database entry which
         ;; the cursor points to which matters for this scan.
         res-compval-fn (if (db-cursor-primary? db-cursor)
@@ -737,7 +739,7 @@
                            (let [key-creator-fn (-> db-cursor :db :key-creator-fn)]
                              (fn [res] (key-creator-fn (second res)))))]
     (letfn [(scan-to-first []
-              (let [res (atom (db-cursor-search db-cursor indexed-value :exact false))]
+              (let [res (atom (db-cursor-search db-cursor indexed-value :exact exact))]
                 (loop []
                   (when-not (empty? @res)
                     (if* (comparison-fn (res-compval-fn @res) indexed-value)
