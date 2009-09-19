@@ -486,16 +486,15 @@
 (defmacro query [& args]
   (let [[clauses opts-args] (args-&rest-&keys args)
         defaults {:limit nil
+                  :callback identity
                   :cupboard '*cupboard*
                   :shelf-name '*default-shelf-name*
                   :txn '*txn*
-                  :lock-mode :default}
+                  :lock-mode :read-uncommitted}
         opts (merge defaults opts-args)
-        use-natural-join (and (not (contains? opts :callback))
+        callback (opts :callback)
+        use-natural-join (and (= = callback)
                               (every? #(= '= %) (map first clauses)))
-        callback (if (contains? opts :callback)
-                     (opts :callback)
-                     `(fn [c# v#] v#))
         limit (opts :limit)
         lock-mode (opts :lock-mode)
         cb (opts :cupboard)
@@ -506,7 +505,7 @@
            ~(if use-natural-join
                 `(query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
                 `(query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode))
-           xres# (map (fn [x#] (callback# cursor# x#)) raw-res#)
+           xres# (map callback# raw-res#)
            limit# ~limit
            lres# (doall (if (nil? limit#)
                             xres#

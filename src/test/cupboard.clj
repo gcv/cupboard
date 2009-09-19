@@ -376,8 +376,12 @@
         (is (= (set (cb/query (= :first-name "John"))) #{p2 p6 p10}))
         (is (= (count (cb/query (< :age 60) (starts-with :first-name "J") :limit 2)) 2))
 
-        ;; TODO: Test :callback functionality! It should be possible to use it
-        ;; :callback functions to delete or modify entries.
+        (cb/query (< :age 60) (= :first-name "John")
+                  :callback #(cb/passoc! % :first-name "Jack"))
+        (is (= (cb/retrieve :login "ja") p2))
+        (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "Jack")))
+
+        ;; TODO: Test :callback functionality with deletes.
 
         ;; TODO: Verify laziness of cb/query intermediate results. (How? Delayed
         ;; printlns?)
