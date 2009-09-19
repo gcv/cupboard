@@ -739,7 +739,8 @@
                            (let [key-creator-fn (-> db-cursor :db :key-creator-fn)]
                              (fn [res] (key-creator-fn (second res)))))]
     (letfn [(scan-to-first []
-              (let [res (atom (db-cursor-search db-cursor indexed-value :exact exact))]
+              (let [res (atom (db-cursor-search db-cursor indexed-value
+                                                :exact exact :lock-mode lock-mode))]
                 (loop []
                   (when-not (empty? @res)
                     (if* (comparison-fn (res-compval-fn @res) indexed-value)
@@ -753,8 +754,9 @@
                       (not (comparison-fn (res-compval-fn prev-res) indexed-value)))
                   (lazy-seq)
                   (lazy-seq (cons prev-res
-                                  (scan (db-cursor-next
-                                         db-cursor :direction direction))))))]
+                                  (scan (db-cursor-next db-cursor
+                                                        :direction direction
+                                                        :lock-mode lock-mode))))))]
       (scan (scan-to-first)))))
 
 
