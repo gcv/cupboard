@@ -384,7 +384,7 @@
         (is (= (cb/retrieve :login "ja") p2))
         (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "Jack")))
 
-        ;; Make sure joins are used wherever possible.
+        ;; Make sure natural joins are used wherever possible.
         (let [q (macroexpand-1
                  '(cb/query (= :age 58) (= :last-name "Adams")
                             :callback #(cb/passoc! % :first-name "John Quincy")))]
@@ -394,7 +394,10 @@
                   :callback #(cb/passoc! % :first-name "John Quincy"))
         (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "John Quincy")))
 
-        ;; TODO: Test :callback functionality with deletes.
+        (cb/query (= :age 58) :callback cb/delete)
+        (is (nil? (cb/retrieve :login "tj")))
+        (is (nil? (cb/retrieve :login "jm1")))
+        (is (nil? (cb/retrieve :login "jqa")))
 
         ;; TODO: Verify laziness of cb/query intermediate results. (How? Delayed
         ;; printlns?)
