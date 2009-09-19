@@ -493,8 +493,7 @@
                   :lock-mode :read-uncommitted}
         opts (merge defaults opts-args)
         callback (opts :callback)
-        use-natural-join (and (= = callback)
-                              (every? #(= '= %) (map first clauses)))
+        use-natural-join (every? #(= '= %) (map first clauses))
         limit (opts :limit)
         lock-mode (opts :lock-mode)
         cb (opts :cupboard)
