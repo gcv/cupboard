@@ -460,16 +460,13 @@
         dominating-clause (determine-dominating-clause clauses)
         [dc-fn-symbol dc-idx dc-val] dominating-clause
         check-fn (fn [entry] ; Make sure entry satisfies all clauses.
-                   (every? (fn [[f-symbol k v]]
-                             (let [f (var-get (resolve f-symbol))]
-                               (f ((second entry) k) v)))
-                           clauses))
+                   (every? (fn [[f k v]] (f ((second entry) k) v)) clauses))
         main-cursor (db-cursor-open (all-indices dc-idx) :txn txn)]
     (try
      (let [res (filter check-fn
                        (db-cursor-scan main-cursor
                                        dc-val
-                                       :comparison-fn (var-get (resolve dc-fn-symbol))
+                                       :comparison-fn dc-fn-symbol
                                        :lock-mode lock-mode))
            final-res (map #(db-res->cb-struct % shelf) res)]
        ;; Return both the main cursor and the resulting lazy sequence. A
@@ -493,7 +490,12 @@
                   :lock-mode :read-uncommitted}
         opts (merge defaults opts-args)
         callback (opts :callback)
+        ;; TODO: Can this check happen against res-clauses, comparing against
+        ;; the = function rather than the '= symbol?
         use-natural-join (every? #(= '= %) (map first clauses))
+        ;; Evaluate the individual elements of each clause. Both easier and more
+        ;; correct than working with raw symbols.
+        res-clauses `(list ~@(map (fn [[f k v]] `(list ~f ~k ~v)) clauses))
         limit (opts :limit)
         lock-mode (opts :lock-mode)
         cb (opts :cupboard)
@@ -502,8 +504,8 @@
     `(let [callback# ~callback
            [cursor# raw-res#]
            ~(if use-natural-join
-                `(query-natural-join '~clauses ~cb ~shelf-name ~txn ~lock-mode)
-                `(query-range-join '~clauses ~cb ~shelf-name ~txn ~lock-mode))
+                `(query-natural-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode)
+                `(query-range-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode))
            xres# (map callback# raw-res#)
            limit# ~limit
            lres# (doall (if (nil? limit#)
@@ -553,7 +555,8 @@
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)
         txn (opts :txn)
-        shelf (get-shelf cb (opts :shelf-name))
+        shelf-name (opts :shelf-name)
+        shelf (get-shelf cb shelf-name)
         index-unique-dbs @(shelf :index-unique-dbs)
         index-any-dbs @(shelf :index-any-dbs)]
     ;; If the index-slot is in :index-uniques, retrieve it and return as is.
@@ -566,25 +569,8 @@
                               :txn txn))]
         (db-res->cb-struct res shelf))
       ;; anys --- cannot use with-db-cursor on lazy sequences
-      ;; TODO: This contains a resource leak for unexhausted
-      ;; sequences. Implement this in terms of (cb/query (= :slot value))
-      ;; instead.
       (contains? index-any-dbs index-slot)
-      (let [idx-cursor (check-txn txn
-                         (db-cursor-open (index-any-dbs index-slot) :txn txn))]
-        (letfn [(idx-scan [cursor-fn & cursor-fn-args]
-                          (try
-                           (let [res (apply cursor-fn (cons idx-cursor cursor-fn-args))]
-                             (if (or (empty? res)
-                                     (not (= ((second res) index-slot) indexed-value)))
-                                 (do (db-cursor-close idx-cursor)
-                                     (lazy-seq))
-                                 (lazy-seq (cons (db-res->cb-struct res shelf)
-                                                 (idx-scan db-cursor-next)))))
-                           (catch DatabaseException de
-                             (db-cursor-close idx-cursor)
-                             (throw de))))]
-          (idx-scan db-cursor-search indexed-value)))
+      (query (= index-slot indexed-value) :cupboard cb :shelf-name shelf-name :txn txn)
       ;; not retrieving an indexed slot
       :else (throw (RuntimeException. (str "attempting retrieve by slot "
                                            index-slot ", not indexed on shelf "
