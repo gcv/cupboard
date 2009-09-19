@@ -174,7 +174,10 @@
        (is (= @p3 (cb/retrieve :login "tj")))
        (is (= @p4 (cb/retrieve :login "jm")))
        ;; test :any index retrieval
-       (is (= (set (cb/retrieve :age 58)) #{@p4 @p3})))
+       (is (= (set (cb/retrieve :age 58)) #{@p4 @p3}))
+       ;; test deletion
+       (cb/delete @p2)
+       (is (nil? (cb/retrieve :login "ja"))))
      (finally
       (rmdir-recursive cupboard-location)))
     ;; explicitly bound cupboard

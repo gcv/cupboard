@@ -591,6 +591,20 @@
                                            (shelf :name)))))))
 
 
+(defn delete [obj & opts-args]
+  (let [defaults {:cupboard *cupboard*
+                  :shelf-name *default-shelf-name*
+                  :txn *txn*}
+        pmeta (meta obj)
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)
+        txn (opts :txn)
+        shelf (get-shelf cb (opts :shelf-name))]
+    (when-not (= (db-delete (shelf :db) (pmeta :primary-key) :txn txn)
+                 OperationStatus/SUCCESS)
+      (throw (RuntimeException. (str "failed to delete " obj))))))
+
+
 (defn passoc!
   "Just like clojure.core/assoc, but works on objects defined with defpersist
    and created with make-instance. Automatically saves modifications.
@@ -623,6 +637,3 @@
       (let [[key & opts-args] args
             opts (args-map opts-args)]
         (save (dissoc obj key) opts))))
-
-
-;;; TODO: (defn delete ...)
