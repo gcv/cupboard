@@ -286,7 +286,7 @@
                                   (try
                                    (with-txn [:cupboard cb :max-attempts 1]
                                      (cb/passoc! ja :bank-acct 7 :cupboard cb)
-                                     (Thread/sleep 100)
+                                     (Thread/sleep 10)
                                      (cb/passoc! gw :bank-acct 8 :cupboard cb))
                                    (finally
                                     (reset! done-2 true))))))))
