@@ -394,15 +394,11 @@
                   :callback #(cb/passoc! % :first-name "John Quincy"))
         (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "John Quincy")))
 
+        ;; Test delete as a callback.
         (cb/query (= :age 58) :callback cb/delete)
         (is (nil? (cb/retrieve :login "tj")))
         (is (nil? (cb/retrieve :login "jm1")))
-        (is (nil? (cb/retrieve :login "jqa")))
-
-        ;; TODO: Verify laziness of cb/query intermediate results. (How? Delayed
-        ;; printlns?)
-
-        ))))
+        (is (nil? (cb/retrieve :login "jqa")))))))
 
 
 ;; (deftest demo
