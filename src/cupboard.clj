@@ -486,8 +486,7 @@
                   :callback identity
                   :cupboard '*cupboard*
                   :shelf-name '*default-shelf-name*
-                  :txn '*txn*
-                  :lock-mode :read-uncommitted}
+                  :txn '*txn*}
         opts (merge defaults opts-args)
         callback (opts :callback)
         ;; TODO: Can this check happen against res-clauses, comparing against
@@ -497,7 +496,10 @@
         ;; correct than working with raw symbols.
         res-clauses `(list ~@(map (fn [[f k v]] `(list ~f ~k ~v)) clauses))
         limit (opts :limit)
-        lock-mode (opts :lock-mode)
+        lock-mode (cond
+                    (contains? opts :lock-mode) (opts :lock-mode)
+                    (= callback identity) :default
+                    :else :read-uncommitted)
         cb (opts :cupboard)
         shelf-name (opts :shelf-name)
         txn (opts :txn)]
