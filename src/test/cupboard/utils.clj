@@ -64,3 +64,7 @@
     (is (= (iso8601->date ds1) d1))
     (is (= (date->iso8601 d2 :msec true) ds2))
     (is (= (date->iso8601 d3) ds3))))
+
+
+(deftest flattening
+  (is (= (flatten '[1 2 (3 [4] 5 "fred") [6 7]]) [1 2 3 4 5 "fred" 6 7])))
