@@ -126,6 +126,7 @@
                    (.setTxnNoSync (conf :txn-no-sync))
                    (.setTxnWriteNoSync (conf :txn-write-no-sync))
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
+    ;; process various configuration parameters
     (when (contains? conf :cache-percent)
       (.setCachePercent conf-obj (conf :cache-percent)))
     (when (contains? conf :cache-bytes)
@@ -134,6 +135,24 @@
       (.setConfigParam conf-obj EnvironmentConfig/LOG_FILE_MAX (str (conf :db-log-max-bytes))))
     (when (contains? conf :in-memory-only)
       (.setConfigParam conf-obj EnvironmentConfig/LOG_MEM_ONLY (str (conf :in-memory-only))))
+    ;; LOG_USE_ODSYNC helps with environments stored on network volumes, see
+    ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#1
+    ;; http://blogs.oracle.com/charlesLamb/2009/05/berkeley_db_java_edition_clean.html
+    (when (contains? conf :db-log-use-odsync)
+      (.setConfigParam conf-obj EnvironmentConfig/LOG_USE_ODSYNC
+                       (str (conf :db-log-use-odsync))))
+    ;; CHECKPOINTER_HIGH_PRIORITY helps with large-cache, high-write-rate
+    ;; environments
+    ;; http://blogs.oracle.com/charlesLamb/2009/05/berkeley_db_java_edition_clean.html
+    ;; May result in a cleaner backlog, consider using along with a higher
+    ;; CLEANER_THREADS count.
+    (when (contains? conf :checkpointer-high-priority)
+      (.setConfigParam conf-obj EnvironmentConfig/CHECKPOINTER_HIGH_PRIORITY
+                       (str (conf :checkpointer-high-priority))))
+    (when (contains? conf :cleaner-threads)
+      (.setConfigParam conf-obj EnvironmentConfig/CLEANER_THREADS
+                       (str (conf :cleaner-threads))))
+    ;; make the environment area and open it
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
             dir
