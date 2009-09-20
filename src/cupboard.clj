@@ -390,21 +390,28 @@
 ;;; ----------------------------------------------------------------------------
 
 (defn- db-res->cb-struct
-  "Takes a raw result returned from a db-core routine and converts it into a
-   map with metadata like the ones created by make-instance."
-  ;; TODO: This should create struct-map instances instead of hash-map
-  ;; instances.
-  [[pkey value] shelf]
+  "Takes a raw result returned from a db-core routine and converts it into a map
+   with metadata like the ones created by make-instance. Unless the :struct
+   argument is given, returns a hash-map instance.
+
+   Optional keyword argument:
+     :struct --- make the result a struct-map of the given type"
+  [[pkey value] shelf & opts-args]
   (when-not (nil? value)
-    (let [index-unique-dbs @(shelf :index-unique-dbs)
+    (let [opts (args-map opts-args)
+          struct-type (opts :struct)    ; may be nil
+          index-unique-dbs @(shelf :index-unique-dbs)
           index-any-dbs @(shelf :index-any-dbs)
           value-key-set (set (keys value))
           metadata {:primary-key pkey
                     :index-uniques (intersection (set (keys index-unique-dbs))
                                                  value-key-set)
                     :index-anys (intersection (set (keys index-any-dbs))
-                                              value-key-set)}]
-      (with-meta value metadata))))
+                                              value-key-set)}
+          xvalue (if (and (not (nil? struct-type)) (contains? opts :struct))
+                     (apply struct-map (flatten [struct-type (seq value)]))
+                     value)]
+      (with-meta xvalue metadata))))
 
 
 (defn- close-cursors [cursors]
@@ -412,7 +419,7 @@
     (db-cursor-close cursor)))
 
 
-(defn query-natural-join [clauses cb shelf-name txn lock-mode]
+(defn query-natural-join [clauses cb shelf-name txn lock-mode struct-type]
   (let [cursors (atom [])
         shelf (get-shelf cb shelf-name)
         all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
@@ -429,7 +436,7 @@
                   (let [res (db-join-cursor-next jc :lock-mode lock-mode)]
                     (if (empty? res)
                         (lazy-seq)
-                        (lazy-seq (cons (db-res->cb-struct res shelf)
+                        (lazy-seq (cons (db-res->cb-struct res shelf :struct struct-type)
                                         (join-iter)))))
                   (catch DatabaseException de
                     (db-join-cursor-close jc)
@@ -454,7 +461,7 @@
   (first clauses))
 
 
-(defn query-range-join [clauses cb shelf-name txn lock-mode]
+(defn query-range-join [clauses cb shelf-name txn lock-mode struct-type]
   (let [shelf (get-shelf cb shelf-name)
         all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))
         dominating-clause (determine-dominating-clause clauses)
@@ -468,7 +475,7 @@
                                        dc-val
                                        :comparison-fn dc-fn-symbol
                                        :lock-mode lock-mode))
-           final-res (map #(db-res->cb-struct % shelf) res)]
+           final-res (map #(db-res->cb-struct % shelf :struct struct-type) res)]
        ;; Return both the main cursor and the resulting lazy sequence. A
        ;; consumer of this function (the query macro) should either consume the
        ;; whole sequence or make sure it closes the cursor.
@@ -497,6 +504,7 @@
         ;; Evaluate the individual elements of each clause. Both easier and more
         ;; correct than working with raw symbols.
         res-clauses `(list ~@(map (fn [[f k v]] `(list ~f ~k ~v)) clauses))
+        struct-type (opts :struct)
         limit (opts :limit)
         lock-mode (cond
                     (contains? opts :lock-mode) (opts :lock-mode)
@@ -508,8 +516,8 @@
     `(let [callback# ~callback
            [cursor# raw-res#]
            ~(if use-natural-join
-                `(query-natural-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode)
-                `(query-range-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode))
+                `(query-natural-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type)
+                `(query-range-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type))
            xres# (map callback# raw-res#)
            limit# ~limit
            lres# (doall (if (nil? limit#)
@@ -557,6 +565,7 @@
                   :shelf-name *default-shelf-name*
                   :txn *txn*}
         opts (merge defaults (args-map opts-args))
+        struct-type (opts :struct)      ; may be nil
         cb (opts :cupboard)
         txn (opts :txn)
         shelf-name (opts :shelf-name)
@@ -571,10 +580,11 @@
       (let [res (check-txn txn
                   (db-sec-get (index-unique-dbs index-slot) indexed-value
                               :txn txn))]
-        (db-res->cb-struct res shelf))
+        (db-res->cb-struct res shelf :struct struct-type))
       ;; anys --- cannot use with-db-cursor on lazy sequences
       (contains? index-any-dbs index-slot)
-      (query (= index-slot indexed-value) :cupboard cb :shelf-name shelf-name :txn txn)
+      (query (= index-slot indexed-value)
+             :cupboard cb :shelf-name shelf-name :txn txn :struct struct-type)
       ;; not retrieving an indexed slot
       :else (throw (RuntimeException. (str "attempting retrieve by slot "
                                            index-slot ", not indexed on shelf "

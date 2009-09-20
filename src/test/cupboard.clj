@@ -168,6 +168,13 @@
        (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62]))
        (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))
        (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58])))
+     ;; test the ability to build a struct-map on retrieve
+     (cb/with-open-cupboard [cupboard-location]
+       (is (= @p1 (cb/retrieve :login "gw")))
+       (let [sp1 (cb/retrieve :login "gw" :struct president)]
+         (is (= (type sp1) clojure.lang.PersistentStructMap))
+         (is (= (meta sp1) (meta @p1)))))
+     ;; test plain retrieval
      (cb/with-open-cupboard [cupboard-location]
        (is (= @p1 (cb/retrieve :login "gw")))
        (is (= @p2 (cb/retrieve :login "ja" :cupboard cb/*cupboard*)))
