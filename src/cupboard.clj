@@ -489,8 +489,10 @@
                   :txn '*txn*}
         opts (merge defaults opts-args)
         callback (opts :callback)
-        ;; TODO: Can this check happen against res-clauses, comparing against
-        ;; the = function rather than the '= symbol?
+        ;; XXX: This check cannot happen against res-clauses, because
+        ;; res-clauses only resolves the function it uses at runtime. The query
+        ;; macro aims to know which join to perform at macroexpansion time
+        ;; (although this may change).
         use-natural-join (every? #(= '= %) (map first clauses))
         ;; Evaluate the individual elements of each clause. Both easier and more
         ;; correct than working with raw symbols.
