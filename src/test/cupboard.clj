@@ -78,81 +78,82 @@
               (is (-> @((@(@cb :shelves) shelf-name) :index-any-dbs)
                       :age :sorted-duplicates)))]
 
-      ;; make an empty cupboard and check its state
-      (reset! cb (open-cupboard *cupboard-path*))
-      (is (not (nil? @(@cb :cupboard-env))))
-      (is (not (nil? @(@cb :shelves-db))))
-      (is (not (nil? @(@cb :shelves))))
-      (is (not (@(@cb :shelves-db) :sorted-duplicates)))
-      (is (= (count @(@cb :shelves)) 1))
-      (is (= (@(@cb :shelves-db) :name) *shelves-db-name*))
-      (is (contains? @(@cb :shelves) *default-shelf-name*))
-      (is (empty? @((@(@cb :shelves) *default-shelf-name*) :index-unique-dbs)))
-      (is (empty? @((@(@cb :shelves) *default-shelf-name*) :index-any-dbs)))
-      (is (not (-> (@(@cb :shelves) *default-shelf-name*) :db :sorted-duplicates)))
+      (testing "making an empty cupboard and checking its state"
+        (reset! cb (open-cupboard *cupboard-path*))
+        (is (not (nil? @(@cb :cupboard-env))))
+        (is (not (nil? @(@cb :shelves-db))))
+        (is (not (nil? @(@cb :shelves))))
+        (is (not (@(@cb :shelves-db) :sorted-duplicates)))
+        (is (= (count @(@cb :shelves)) 1))
+        (is (= (@(@cb :shelves-db) :name) *shelves-db-name*))
+        (is (contains? @(@cb :shelves) *default-shelf-name*))
+        (is (empty? @((@(@cb :shelves) *default-shelf-name*) :index-unique-dbs)))
+        (is (empty? @((@(@cb :shelves) *default-shelf-name*) :index-any-dbs)))
+        (is (not (-> (@(@cb :shelves) *default-shelf-name*) :db :sorted-duplicates))))
 
-      ;; write something to the default shelf
-      (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard @cb)
-      (verify-shelf *default-shelf-name*)
-      ;; write something to a different shelf
-      (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard @cb :shelf-name "presidents")
-      (verify-shelf "presidents")
+      (testing "writing something to the default shelf"
+        (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard @cb)
+        (verify-shelf *default-shelf-name*))
 
-      ;; close cupboard
-      (close-cupboard @cb)
-      (= (nil? @(@cb :cupboard-env)))
-      (= (empty? @(@cb :shelves-db)))
-      (= (empty? @(@cb :shelves)))
+      (testing "writing something to a different shelf"
+        (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard @cb :shelf-name "presidents")
+        (verify-shelf "presidents"))
 
-      ;; reopen cupboard, and verify correctness of reopened state
-      (reset! cb (open-cupboard *cupboard-path*))
-      (verify-shelf *default-shelf-name*)
-      (verify-shelf "presidents")
+      (testing "closing cupboard"
+        (close-cupboard @cb)
+        (= (nil? @(@cb :cupboard-env)))
+        (= (empty? @(@cb :shelves-db)))
+        (= (empty? @(@cb :shelves))))
 
-      ;; delete shelf
-      (remove-shelf "presidents" :cupboard @cb)
-      (verify-shelf *default-shelf-name*)
-      (is (not (contains? @(@cb :shelves) "presidents")))
-      (is (not (contains? (list-shelves :cupboard @cb) "presidents")))
+      (testing "reopening cupboard, and verifying correctness of reopened state"
+        (reset! cb (open-cupboard *cupboard-path*))
+        (verify-shelf *default-shelf-name*)
+        (verify-shelf "presidents"))
 
-      ;; close and reopen cupboard, and verify correctness of reopened state
-      (close-cupboard @cb)
-      (reset! cb (open-cupboard *cupboard-path*))
-      (verify-shelf *default-shelf-name*)
-      (is (not (contains? @(@cb :shelves) "presidents")))
+      (testing "deleting shelf"
+        (remove-shelf "presidents" :cupboard @cb)
+        (verify-shelf *default-shelf-name*)
+        (is (not (contains? @(@cb :shelves) "presidents")))
+        (is (not (contains? (list-shelves :cupboard @cb) "presidents"))))
 
-      ;; check invalid shelf names
-      (is (thrown? RuntimeException
-                   (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]
-                                     :cupboard cb :shelf-name "invalid:name")))
-      (is (thrown? RuntimeException
-                   (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]
-                                     :cupboard cb :shelf-name *shelves-db-name*)))
+      (testing "closing and reopening cupboard, and verifying correctness"
+        (close-cupboard @cb)
+        (reset! cb (open-cupboard *cupboard-path*))
+        (verify-shelf *default-shelf-name*)
+        (is (not (contains? @(@cb :shelves) "presidents"))))
+
+      (testing "checking invalid shelf names"
+        (is (thrown? RuntimeException
+                     (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]
+                                       :cupboard cb :shelf-name "invalid:name")))
+        (is (thrown? RuntimeException
+                     (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]
+                                       :cupboard cb :shelf-name *shelves-db-name*))))
 
       (close-cupboard @cb)))
 
-  ;; check the correctness of the cupboard databases
-  (db-core/with-db-env [env *cupboard-path*]
-    (let [idx-name-age (str *default-shelf-name* :age)
-          idx-name-bank-acct (str *default-shelf-name* :bank-acct)
-          idx-name-first-name (str *default-shelf-name* :first-name)
-          idx-name-last-name (str *default-shelf-name* :last-name)
-          idx-name-login (str *default-shelf-name* :login)]
-      ;; check environment
-      (is (= (set (.getDatabaseNames @(env :env-handle)))
-             #{*shelves-db-name* *default-shelf-name*
-               idx-name-age idx-name-bank-acct idx-name-first-name
-               idx-name-last-name idx-name-login}))
-      ;; check _shelves
-      (db-core/with-db [shelves-db env *shelves-db-name*]
-        (db-core/with-db-cursor [cur1 shelves-db]
-          (is (= (db-cursor-first cur1) [*default-shelf-name* {}]))
-          (is (= (db-cursor-next cur1) [idx-name-age {:sorted-duplicates true}]))
-          (is (= (db-cursor-next cur1) [idx-name-bank-acct {:sorted-duplicates false}]))
-          (is (= (db-cursor-next cur1) [idx-name-first-name {:sorted-duplicates true}]))
-          (is (= (db-cursor-next cur1) [idx-name-last-name {:sorted-duplicates true}]))
-          (is (= (db-cursor-next cur1) [idx-name-login {:sorted-duplicates false}]))
-          (is (= (db-cursor-next cur1) [])))))))
+  (testing "check the correctness of the cupboard databases"
+    (db-core/with-db-env [env *cupboard-path*]
+      (let [idx-name-age (str *default-shelf-name* :age)
+            idx-name-bank-acct (str *default-shelf-name* :bank-acct)
+            idx-name-first-name (str *default-shelf-name* :first-name)
+            idx-name-last-name (str *default-shelf-name* :last-name)
+            idx-name-login (str *default-shelf-name* :login)]
+        (testing "checking environment"
+          (is (= (set (.getDatabaseNames @(env :env-handle)))
+                 #{*shelves-db-name* *default-shelf-name*
+                   idx-name-age idx-name-bank-acct idx-name-first-name
+                   idx-name-last-name idx-name-login})))
+        (testing "checking _shelves"
+          (db-core/with-db [shelves-db env *shelves-db-name*]
+            (db-core/with-db-cursor [cur1 shelves-db]
+              (is (= (db-cursor-first cur1) [*default-shelf-name* {}]))
+              (is (= (db-cursor-next cur1) [idx-name-age {:sorted-duplicates true}]))
+              (is (= (db-cursor-next cur1) [idx-name-bank-acct {:sorted-duplicates false}]))
+              (is (= (db-cursor-next cur1) [idx-name-first-name {:sorted-duplicates true}]))
+              (is (= (db-cursor-next cur1) [idx-name-last-name {:sorted-duplicates true}]))
+              (is (= (db-cursor-next cur1) [idx-name-login {:sorted-duplicates false}]))
+              (is (= (db-cursor-next cur1) [])))))))))
 
 
 (deftest basics
@@ -161,53 +162,57 @@
         p2 (atom nil)
         p3 (atom nil)
         p4 (atom nil)]
-    ;; default cb/*cupboard*
-    (try
-     (cb/with-open-cupboard [cupboard-location]
-       (reset! p1 (cb/make-instance president ["gw" "George" "Washington" 57]))
-       (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62]))
-       (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))
-       (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58])))
-     ;; test the ability to build a struct-map on retrieve
-     (cb/with-open-cupboard [cupboard-location]
-       (is (= @p1 (cb/retrieve :login "gw")))
-       (let [sp1 (cb/retrieve :login "gw" :struct president)]
-         (is (= (type sp1) clojure.lang.PersistentStructMap))
-         (is (= (meta sp1) (meta @p1)))))
-     ;; test plain retrieval
-     (cb/with-open-cupboard [cupboard-location]
-       (is (= @p1 (cb/retrieve :login "gw")))
-       (is (= @p2 (cb/retrieve :login "ja" :cupboard cb/*cupboard*)))
-       (is (= @p3 (cb/retrieve :login "tj")))
-       (is (= @p4 (cb/retrieve :login "jm")))
-       ;; test :any index retrieval
-       (is (= (set (cb/retrieve :age 58)) #{@p4 @p3}))
-       ;; test deletion
-       (cb/delete @p2)
-       (is (nil? (cb/retrieve :login "ja"))))
-     (finally
-      (rmdir-recursive cupboard-location)))
-    ;; explicitly bound cupboard
-    (try
-     (cb/with-open-cupboard [cb cupboard-location]
-       (reset! p1 (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard cb))
-       (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard cb))
-       (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58] :cupboard cb))
-       (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58] :cupboard cb)))
-     (cb/with-open-cupboard [cb cupboard-location]
-       (is (= @p1 (cb/retrieve :login "gw" :cupboard cb)))
-       (is (= @p2 (cb/retrieve :login "ja" :cupboard cb)))
-       (is (= @p3 (cb/retrieve :login "tj" :cupboard cb)))
-       (is (= @p4 (cb/retrieve :login "jm" :cupboard cb)))
-       (is (thrown? NullPointerException (cb/retrieve :login "jm"))))
-     (finally
-      (rmdir-recursive cupboard-location)))))
+
+    (testing "default cb/*cupboard*"
+      (try
+       (cb/with-open-cupboard [cupboard-location]
+         (reset! p1 (cb/make-instance president ["gw" "George" "Washington" 57]))
+         (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62]))
+         (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))
+         (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58])))
+
+       (testing "ability to build a struct-map on retrieve"
+         (cb/with-open-cupboard [cupboard-location]
+           (is (= @p1 (cb/retrieve :login "gw")))
+           (let [sp1 (cb/retrieve :login "gw" :struct president)]
+             (is (= (type sp1) clojure.lang.PersistentStructMap))
+             (is (= (meta sp1) (meta @p1))))))
+
+       (testing "plain hash-map retrieval"
+         (cb/with-open-cupboard [cupboard-location]
+           (is (= @p1 (cb/retrieve :login "gw")))
+           (is (= @p2 (cb/retrieve :login "ja" :cupboard cb/*cupboard*)))
+           (is (= @p3 (cb/retrieve :login "tj")))
+           (is (= @p4 (cb/retrieve :login "jm")))
+           (testing ":any index retrieval"
+             (is (= (set (cb/retrieve :age 58)) #{@p4 @p3})))
+           (testing "deletion"
+             (cb/delete @p2)
+             (is (nil? (cb/retrieve :login "ja"))))))
+         (finally
+          (rmdir-recursive cupboard-location))))
+
+    (testing "explicitly bound cupboard"
+      (try
+       (cb/with-open-cupboard [cb cupboard-location]
+         (reset! p1 (cb/make-instance president ["gw" "George" "Washington" 57] :cupboard cb))
+         (reset! p2 (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard cb))
+         (reset! p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58] :cupboard cb))
+         (reset! p4 (cb/make-instance president ["jm" "James" "Madison" 58] :cupboard cb)))
+       (cb/with-open-cupboard [cb cupboard-location]
+         (is (= @p1 (cb/retrieve :login "gw" :cupboard cb)))
+         (is (= @p2 (cb/retrieve :login "ja" :cupboard cb)))
+         (is (= @p3 (cb/retrieve :login "tj" :cupboard cb)))
+         (is (= @p4 (cb/retrieve :login "jm" :cupboard cb)))
+         (is (thrown? NullPointerException (cb/retrieve :login "jm"))))
+       (finally
+        (rmdir-recursive cupboard-location))))))
 
 
 (deftest transaction-basics
-  (let [p1 {:login "gw" :first-name "George" :last-name "Washington" :age 57 :bank-acct nil}]
-    (cb/with-open-cupboard [*cupboard-path*]
-      ;; barebones operations
+  (cb/with-open-cupboard [*cupboard-path*]
+    (let [p1 {:login "gw" :first-name "George" :last-name "Washington" :age 57 :bank-acct nil}]
+
       (testing "basic transactions"
         (cb/with-txn []
           (cb/make-instance president ["gw" "George" "Washington" 57])
@@ -226,12 +231,13 @@
                 (cb/make-instance president ["ja" "John" "Adams" 62]))))
         (is (empty? (cb/retrieve :login "ja")))
         (is (= (cb/retrieve :login "gw") p1)))
-      ;; transactional remove-shelf
+
       (testing "transactional shelf removal"
         (cb/make-instance president ["aj" "Andrew" "Johnson"] :shelf-name "presidents")
         (cb/with-txn []
           (is (= (cb/retrieve :login "aj" :shelf-name "presidents")
-                 {:login "aj" :first-name "Andrew" :last-name "Johnson" :bank-acct nil :age nil}))
+                 {:login "aj" :first-name "Andrew" :last-name "Johnson"
+                  :bank-acct nil :age nil}))
           (cb/remove-shelf "presidents")
           (is (not (some #(= % "presidents") (list-shelves))))
           (cb/rollback))
@@ -256,7 +262,7 @@
            ja (cb/make-instance president ["ja" "John" "Adams" 62] :cupboard cb)
            done-1 (atom false)
            done-2 (atom false)]
-       ;; phase one
+
        (testing "deadlock resolution, both threads commit"
          (.start (Thread. (fn []
                             (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 10]
@@ -278,7 +284,7 @@
          ;; The first thread has a shorter retry delay, so it should win the race.
          (is (= (cb/retrieve :login "gw" :cupboard cb) (assoc gw :bank-acct 4)))
          (is (= (cb/retrieve :login "ja" :cupboard cb) (assoc ja :bank-acct 3))))
-       ;; phase two
+
        (testing "deadlock resolution, one thread rolls back permanently"
          (reset! done-1 false)
          (reset! done-2 false)
@@ -305,29 +311,31 @@
          ;; Only the first thread should commit here.
          (is (= (cb/retrieve :login "gw" :cupboard cb) (assoc gw :bank-acct 5)))
          (is (= (cb/retrieve :login "ja" :cupboard cb) (assoc ja :bank-acct 6)))))
+
      (finally
       (close-cupboard cb)))))
 
 
 (deftest passoc!-pdissoc!
-  (let [date-gw (iso8601->date "1732-02-22 00:00:00Z")
-        gw1 {:login "gw" :first-name "George" :last-name "Washington"
-             :age 57 :bank-acct nil}
-        gw2 {:login "gw" :first-name "George" :last-name "Washington"
-             :age 57 :bank-acct 1}
-        gw3 {:login "gw" :first-name "George" :last-name "Washington"
-             :age 57 :bank-acct 1 :birthday date-gw}
-        date-ja (iso8601->date "1735-10-30 00:00:00Z")
-        ja1 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct nil}
-        ja2 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2}
-        ja3 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2
-             :birthday date-ja}
-        date-tj (iso8601->date "1743-04-13 00:00:00Z")
-        tj1 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct nil}
-        tj2 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3}
-        tj3 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3
-             :birthday date-tj}]
-    (cb/with-open-cupboard [*cupboard-path*]
+  (cb/with-open-cupboard [*cupboard-path*]
+    (let [date-gw (iso8601->date "1732-02-22 00:00:00Z")
+          gw1 {:login "gw" :first-name "George" :last-name "Washington"
+               :age 57 :bank-acct nil}
+          gw2 {:login "gw" :first-name "George" :last-name "Washington"
+               :age 57 :bank-acct 1}
+          gw3 {:login "gw" :first-name "George" :last-name "Washington"
+               :age 57 :bank-acct 1 :birthday date-gw}
+          date-ja (iso8601->date "1735-10-30 00:00:00Z")
+          ja1 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct nil}
+          ja2 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2}
+          ja3 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2
+               :birthday date-ja}
+          date-tj (iso8601->date "1743-04-13 00:00:00Z")
+          tj1 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct nil}
+          tj2 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3}
+          tj3 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3
+               :birthday date-tj}]
+
       (testing "simple passoc!-pdissoc! operations"
         (let [p (atom (cb/make-instance president ["gw" "George" "Washington" 57]))]
           (is (= (cb/retrieve :login "gw") gw1))
@@ -337,6 +345,7 @@
           (is (= (cb/retrieve :login "gw") gw3))
           (reset! p (cb/pdissoc! @p :birthday))
           (is (= (cb/retrieve :login "gw") gw2))))
+
       (testing "passoc!-pdissoc! operations on non-default shelves"
         (let [p (atom (cb/make-instance president ["ja" "John" "Adams" 62]
                                         :shelf-name "presidents"))]
@@ -347,6 +356,7 @@
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja3))
           (reset! p (cb/pdissoc! @p :birthday))
           (is (= (cb/retrieve :login "ja" :shelf-name "presidents") ja2))))
+
       (testing "passoc!-pdissoc! operations with multiple operands"
         (let [p (atom (cb/make-instance president ["tj" "Thomas" "Jefferson" 58]))]
           (is (= (cb/retrieve :login "tj") tj1))
@@ -358,19 +368,19 @@
 
 
 (deftest queries
-  (testing "simple comparison cursors"
-    (cb/with-open-cupboard [*cupboard-path*]
-      (let [p1 (cb/make-instance president ["gw" "George" "Washington" 57])
-            p2 (cb/make-instance president ["ja" "John" "Adams" 62])
-            p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58])
-            p4 (cb/make-instance president ["jm1" "James" "Madison" 58])
-            p5 (cb/make-instance president ["jm2" "James" "Monroe" 59])
-            p6 (cb/make-instance president ["jqa" "John" "Adams" 58])
-            p7 (cb/make-instance president ["aj" "Andrew" "Jackson" 62])
-            p8 (cb/make-instance president ["mvb" "Martin" "Van Buren" 55])
-            p9 (cb/make-instance president ["whh" "William" "Harrison" 68])
-            p10 (cb/make-instance president ["jt" "John" "Tyler" 51])]
+  (cb/with-open-cupboard [*cupboard-path*]
+    (let [p1 (cb/make-instance president ["gw" "George" "Washington" 57])
+          p2 (cb/make-instance president ["ja" "John" "Adams" 62])
+          p3 (cb/make-instance president ["tj" "Thomas" "Jefferson" 58])
+          p4 (cb/make-instance president ["jm1" "James" "Madison" 58])
+          p5 (cb/make-instance president ["jm2" "James" "Monroe" 59])
+          p6 (cb/make-instance president ["jqa" "John" "Adams" 58])
+          p7 (cb/make-instance president ["aj" "Andrew" "Jackson" 62])
+          p8 (cb/make-instance president ["mvb" "Martin" "Van Buren" 55])
+          p9 (cb/make-instance president ["whh" "William" "Harrison" 68])
+          p10 (cb/make-instance president ["jt" "John" "Tyler" 51])]
 
+      (testing "basic one-clause query operations"
         (is (= (set (cb/query (= :login "gw"))) #{p1}))
         (is (= (set (cb/query (= :login "aj"))) #{p7}))
         (is (= (set (cb/query (= :age 57))) #{p1}))
@@ -378,20 +388,22 @@
         (is (= (set (cb/query (= :age 62))) #{p2 p7}))
         (is (= (set (cb/query (<= :age 55))) #{p8 p10}))
         (is (= (set (cb/query (< :age 55))) #{p10}))
-        (is (= (set (cb/query (> :age 60))) #{p2 p7 p9}))
+        (is (= (set (cb/query (> :age 60))) #{p2 p7 p9})))
 
+      (testing "queries with multiple clauses"
         (is (= (set (cb/query (< :age 60) (starts-with :first-name "J"))) #{p4 p5 p6 p10}))
         (is (= (set (cb/query (< :age 60) (starts-with :first-name "Ja"))) #{p4 p5}))
         (is (= (set (cb/query (< :age 60) (= :first-name "John"))) #{p6 p10}))
         (is (= (set (cb/query (= :first-name "John"))) #{p2 p6 p10}))
-        (is (= (count (cb/query (< :age 60) (starts-with :first-name "J") :limit 2)) 2))
+        (is (= (count (cb/query (< :age 60) (starts-with :first-name "J") :limit 2)) 2)))
 
+      (testing "destructive callbacks"
         (cb/query (< :age 60) (= :first-name "John")
                   :callback #(cb/passoc! % :first-name "Jack"))
         (is (= (cb/retrieve :login "ja") p2))
-        (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "Jack")))
+        (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "Jack"))))
 
-        ;; Make sure natural joins are used wherever possible.
+      (testing "making sure natural joins are used wherever possible"
         (let [q (macroexpand-1
                  '(cb/query (= :age 58) (= :last-name "Adams")
                             :callback #(cb/passoc! % :first-name "John Quincy")))]
@@ -399,13 +411,18 @@
                  'cupboard/query-natural-join)))
         (cb/query (= :age 58) (= :last-name "Adams")
                   :callback #(cb/passoc! % :first-name "John Quincy"))
-        (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "John Quincy")))
+        (is (= (cb/retrieve :login "jqa") (assoc p6 :first-name "John Quincy"))))
 
-        ;; Test delete as a callback.
+      (testing "delete as a callback"
         (cb/query (= :age 58) :callback cb/delete)
         (is (nil? (cb/retrieve :login "tj")))
         (is (nil? (cb/retrieve :login "jm1")))
-        (is (nil? (cb/retrieve :login "jqa")))))))
+        (is (nil? (cb/retrieve :login "jqa"))))
+
+      (testing "making sure that :struct applied to query works"
+        (let [everyone (cb/query (> :age 50) :struct president)]
+          (is (> (count everyone) 0))
+          (is (every? #(= (type %) clojure.lang.PersistentStructMap) everyone)))))))
 
 
 ;; (deftest demo
