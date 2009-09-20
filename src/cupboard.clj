@@ -590,9 +590,10 @@
         cb (opts :cupboard)
         txn (opts :txn)
         shelf (get-shelf cb (opts :shelf-name))]
-    (when-not (= (db-delete (shelf :db) (pmeta :primary-key) :txn txn)
-                 OperationStatus/SUCCESS)
-      (throw (RuntimeException. (str "failed to delete " obj))))))
+    (let [res (check-txn txn
+                (db-delete (shelf :db) (pmeta :primary-key) :txn txn))]
+      (when-not (= res OperationStatus/SUCCESS)
+        (throw (RuntimeException. (str "failed to delete " obj)))))))
 
 
 (defn passoc!
