@@ -124,7 +124,10 @@
                                                  :key-creator-fn index-name})
               index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
                                     index-db-name index-open-opts)]
-          (db-put @(cb :shelves-db) index-db-name index-opts)
+          (when-not (= (db-put @(cb :shelves-db) index-db-name index-opts)
+                       OperationStatus/SUCCESS)
+            (throw (RuntimeException. (str "failed to save metadata about index "
+                                           index-db-name))))
           (swap! (shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
                             :index-any-dbs
                             :index-unique-dbs))
@@ -165,7 +168,9 @@
                                       :sorted-duplicates false})
               shelf-db (db-open @(cb :cupboard-env) shelf-name open-shelf-opts)
               shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
-          (db-put @(cb :shelves-db) shelf-name shelf-opts)
+          (when-not (= (db-put @(cb :shelves-db) shelf-name shelf-opts)
+                       OperationStatus/SUCCESS)
+            (throw (RuntimeException. (str "failed to save metadata about shelf " shelf-name))))
           (swap! (cb :shelves) assoc shelf-name shelf)
           (open-indices cb shelf)
           shelf))))
