@@ -444,6 +444,7 @@
          ;; consumer of this function (the query macro) should either consume
          ;; the whole sequence or make sure it closes the cursor.
          [jc (join-iter)]))
+     ;; close all cursors on clean up
      (finally
       ;; XXX: Must be a separate named function, as Clojure does not support
       ;; iteration inside catch or finally forms.
@@ -479,6 +480,7 @@
        ;; consumer of this function (the query macro) should either consume the
        ;; whole sequence or make sure it closes the cursor.
        [main-cursor final-res])
+     ;; clean up in case of error
      (catch DatabaseException de
        (db-cursor-close main-cursor)
        (throw de)))))
