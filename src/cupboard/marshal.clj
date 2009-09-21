@@ -4,11 +4,6 @@
            [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
 
-;; TODO: Verify that strings encode in UTF-8 under all circumstances.
-;; TODO: Lock out lazy Clojure data structures if possible?
-;; TODO: Handle Java collections?
-
-
 (def *clj-types* [nil
                   java.lang.Boolean
                   java.lang.Character
@@ -149,10 +144,10 @@
 ;; XXX: Symbols get interned in the package which unmarshals the symbol!!!
 (def-unmarshal-read clojure.lang.Symbol
   (fn [#^TupleInput tuple-input] (symbol (.readString tuple-input))))
-;; TODO: When available, use a transient data structure to put
-;; together sequences in the loop (as is, it creates quite a bit of
-;; garbage). Alternatively, maybe use a for form if it is more
-;; efficient?
+;; TODO: When available in a full Clojure release, use a transient data
+;; structure to put together sequences in the loop (as is, it creates quite a
+;; bit of garbage). Alternatively, maybe use a for form if it is more efficient?
+;; http://clojure.org/transients
 (letfn [(seq-read-fn [starting-value after-fn]
           (fn [tuple-input]
             (let [len (unmarshal-read tuple-input)]
