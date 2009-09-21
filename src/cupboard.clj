@@ -378,9 +378,8 @@
                            (do
                              (rollback ~txn-var)
                              (throw (RuntimeException.
-                                     (str "deadlock: " (.getMessage deadlock#)))))))
-                     ;; TODO: Catch a DatabaseException here also?
-                     )))]
+                                     (str "deadlock: "
+                                          (.getMessage deadlock#))))))))))]
          (attempt-txn# 1)))))
 
 
