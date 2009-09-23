@@ -38,13 +38,13 @@
 ;;; useful structs
 ;;; ----------------------------------------------------------------------------
 
-(defstruct* cupboard
+(defstruct cupboard
   :cupboard-env
   :shelves-db
   :shelves)
 
 
-(defstruct* shelf
+(defstruct shelf
   :db
   :name
   ;; Keep index types separate; this simplifies retrieval code since :unique and
@@ -53,7 +53,7 @@
   :index-any-dbs)
 
 
-(defstruct* persistence-metadata
+(defstruct persistence-metadata
   ; :cupboard intentionally omitted
   ; :shelf-name intentionally omitted
   :primary-key
