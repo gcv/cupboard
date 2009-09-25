@@ -1,8 +1,8 @@
 (ns cupboard.utils
   (:use [clojure.contrib java-utils])
+  (:import [org.joda.time DateTime LocalDate LocalTime LocalDateTime DateTimeZone])
   (:import [java.io File IOException FileNotFoundException]
-           [java.text SimpleDateFormat ParseException]
-           [java.util Date TimeZone]))
+           [java.text SimpleDateFormat ParseException]))
 
 
 
@@ -81,34 +81,18 @@
 
 
 
-;; ----------------------------------------------------------------------
-;; date handling routines
-;; ----------------------------------------------------------------------
+;;; ----------------------------------------------------------------------
+;;; Joda Date wrappers
+;;; ----------------------------------------------------------------------
 
-(def #^SimpleDateFormat *iso8601-date-format*
-     (doto (SimpleDateFormat. "yyyy-MM-dd HH:mm:ss'Z'")
-       (.setTimeZone (TimeZone/getTimeZone "UTC"))))
+(defmacro make-jd-wrapper [name jd-type]
+  `(defn ~name [& [x#]]
+     (if (nil? x#) (new ~jd-type) (new ~jd-type x#))))
 
-(def #^SimpleDateFormat *iso8601-date-format-msec*
-     (doto (SimpleDateFormat. "yyyy-MM-dd HH:mm:ss.SSS'Z'")
-       (.setTimeZone (TimeZone/getTimeZone "UTC"))))
-
-(defn date->iso8601
-  {:tag String}
-  [#^Date date & opts-args]
-  (let [defaults {:msec false}
-        opts     (merge defaults (args-map opts-args))]
-    (if (opts :msec)
-        (.format *iso8601-date-format-msec* date)
-        (.format *iso8601-date-format* date))))
-
-(defn iso8601->date
-  {:tag Date}
-  [#^String datestr]
-  (try
-   (.parse *iso8601-date-format-msec* datestr)
-   (catch ParseException pe
-     (.parse *iso8601-date-format* datestr))))
+(make-jd-wrapper datetime DateTime)
+(make-jd-wrapper localdate LocalDate)
+(make-jd-wrapper localtime LocalTime)
+(make-jd-wrapper localdatetime LocalDateTime)
 
 
 

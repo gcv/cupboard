@@ -1,6 +1,7 @@
 (ns test.cupboard.marshal
   (:use [cupboard marshal])
   (:use [clojure.contrib test-is])
+  (:import [org.joda.time DateTime LocalDate LocalTime LocalDateTime DateTimeZone])
   (:import [com.sleepycat.je DatabaseEntry OperationStatus]))
 
 
@@ -17,6 +18,10 @@
         tdouble  1.0
         tstring  "hello world"
         tdate    (java.util.Date.)
+        jt-dt    (DateTime.)
+        jt-ld    (LocalDate.)
+        jt-lt    (LocalTime.)
+        jt-ldt   (LocalDateTime.)
         tuuid    (java.util.UUID/randomUUID)
         tkeyword :one
         tsymbol  'one
@@ -36,6 +41,10 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tdouble)) tdouble))
     (is (= (unmarshal-db-entry (marshal-db-entry tstring)) tstring))
     (is (= (unmarshal-db-entry (marshal-db-entry tdate)) tdate))
+    (is (= (unmarshal-db-entry (marshal-db-entry jt-dt)) jt-dt))
+    (is (= (unmarshal-db-entry (marshal-db-entry jt-ld)) jt-ld))
+    (is (= (unmarshal-db-entry (marshal-db-entry jt-lt)) jt-lt))
+    (is (= (unmarshal-db-entry (marshal-db-entry jt-ldt)) jt-ldt))
     (is (= (unmarshal-db-entry (marshal-db-entry tuuid)) tuuid))
     (is (= (unmarshal-db-entry (marshal-db-entry tkeyword)) tkeyword))
     (is (= (unmarshal-db-entry (marshal-db-entry tsymbol)) tsymbol))

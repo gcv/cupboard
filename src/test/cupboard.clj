@@ -318,19 +318,19 @@
 
 (deftest passoc!-pdissoc!
   (cb/with-open-cupboard [*cupboard-path*]
-    (let [date-gw (iso8601->date "1732-02-22 00:00:00Z")
+    (let [date-gw (localdate "1732-02-22")
           gw1 {:login "gw" :first-name "George" :last-name "Washington"
                :age 57 :bank-acct nil}
           gw2 {:login "gw" :first-name "George" :last-name "Washington"
                :age 57 :bank-acct 1}
           gw3 {:login "gw" :first-name "George" :last-name "Washington"
                :age 57 :bank-acct 1 :birthday date-gw}
-          date-ja (iso8601->date "1735-10-30 00:00:00Z")
+          date-ja (localdate "1735-10-30")
           ja1 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct nil}
           ja2 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2}
           ja3 {:login "ja" :first-name "John" :last-name "Adams" :age 62 :bank-acct 2
                :birthday date-ja}
-          date-tj (iso8601->date "1743-04-13 00:00:00Z")
+          date-tj (localdate "1743-04-13")
           tj1 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct nil}
           tj2 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3}
           tj3 {:login "tj" :first-name "Thomas" :last-name "Jefferson" :age 58 :bank-acct 3
