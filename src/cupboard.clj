@@ -531,7 +531,11 @@
            lres# (doall (if (nil? limit#)
                             xres#
                             (take limit# xres#)))]
-       (~(if use-natural-join 'db-join-cursor-close 'db-cursor-close) cursor#)
+       (~(if use-natural-join
+             ;; must use fully-qualified names
+             'cupboard.db-core/db-join-cursor-close
+             'cupboard.db-core/db-cursor-close)
+        cursor#)
        lres#)))
 
 
