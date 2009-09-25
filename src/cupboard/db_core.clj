@@ -83,10 +83,10 @@
 
 (defmacro def-with-db-macro [macro-name open-fn close-fn]
   `(defmacro ~macro-name [[var# & open-args#] & body#]
-     `(let [~var# (apply ~'~open-fn [~@open-args#])]
+     `(let [~var# (apply ~~open-fn [~@open-args#])]
         (try
          ~@body#
-         (finally (~'~close-fn ~var#))))))
+         (finally (~~close-fn ~var#))))))
 
 
 (defonce *lock-modes*
@@ -167,7 +167,7 @@
   (reset! (db-env :env-handle) nil))
 
 
-(def-with-db-macro with-db-env db-env-open db-env-close)
+(def-with-db-macro with-db-env `db-env-open `db-env-close)
 
 
 (defn db-env-modify [db-env & opts-args]
@@ -379,8 +379,8 @@
      (finally (reset! (txn :txn-handle) nil)))))
 
 
-(def-with-db-macro with-db-txn db-txn-begin
-  (fn [txn] (when (= @(txn :status) :open) (db-txn-commit txn))))
+(def-with-db-macro with-db-txn `db-txn-begin
+  `(fn [txn#] (when (= @(txn# :status) :open) (db-txn-commit txn#))))
 
 
 
@@ -422,7 +422,7 @@
   (reset! (db :db-handle) nil))
 
 
-(def-with-db-macro with-db db-open db-close)
+(def-with-db-macro with-db `db-open `db-close)
 
 
 (defn db-sync [db]
@@ -530,7 +530,7 @@
   (reset! (db-sec :db-sec-handle) nil))
 
 
-(def-with-db-macro with-db-sec db-sec-open db-sec-close)
+(def-with-db-macro with-db-sec `db-sec-open `db-sec-close)
 
 
 (defn db-sec-get
@@ -594,7 +594,7 @@
   (reset! (db-cursor :cursor-handle) nil))
 
 
-(def-with-db-macro with-db-cursor db-cursor-open db-cursor-close)
+(def-with-db-macro with-db-cursor `db-cursor-open `db-cursor-close)
 
 
 (defn db-cursor-search
@@ -800,7 +800,7 @@
   (reset! (db-join-cursor :join-cursor-handle) nil))
 
 
-(def-with-db-macro with-db-join-cursor db-join-cursor-open db-join-cursor-close)
+(def-with-db-macro with-db-join-cursor `db-join-cursor-open `db-join-cursor-close)
 
 
 (defn db-join-cursor-next [db-join-cursor & opts-args]
