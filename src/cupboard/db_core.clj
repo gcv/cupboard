@@ -707,10 +707,12 @@
         key-entry (marshal-db-entry key)
         data-entry (marshal-db-entry data)]
     (cond (opts :no-dup-data) (.putNoDupData
-                               @(db-cursor :cursor-handle) key-entry data-entry)
+                               #^Cursor @(db-cursor :cursor-handle)
+                               key-entry data-entry)
           (opts :no-overwrite) (.putNoOverwrite
-                                @(db-cursor :cursor-handle) key-entry data-entry)
-          :else (.put @(db-cursor :cursor-handle) key-entry data-entry))))
+                                #^Cursor @(db-cursor :cursor-handle)
+                                key-entry data-entry)
+          :else (.put #^Cursor @(db-cursor :cursor-handle) key-entry data-entry))))
 
 
 (defn db-cursor-delete
@@ -722,7 +724,7 @@
 (defn db-cursor-replace
   "Replaces the data entry of the record the cursor currently points to."
   [db-cursor new-data]
-  (.putCurrent @(db-cursor :cursor-handle) (marshal-db-entry new-data)))
+  (.putCurrent #^Cursor @(db-cursor :cursor-handle) (marshal-db-entry new-data)))
 
 
 (defn db-cursor-cache-mode [db-cursor mode]
@@ -784,7 +786,8 @@
         conf (merge defaults (args-map conf-args))
         conf-obj (doto (JoinConfig.)
                    (.setNoSort (conf :no-sort)))
-        #^Database pdb-obj (.getPrimaryDatabase @((first db-cursors) :cursor-handle))]
+        #^Database pdb-obj (.getPrimaryDatabase
+                            #^SecondaryCursor @((first db-cursors)  :cursor-handle))]
     (struct db-join-cursor
             db-cursors
             (atom (.join pdb-obj

@@ -147,7 +147,9 @@
   "Returns the shelf identified by shelf-name from the cupboard identified by
    cb. If the shelf is not open, open and return it. If the shelf does not
    exist, then create, open, and return it."
-  [cb shelf-name & opts-args]
+  [cb
+   #^String shelf-name
+   & opts-args]
   (let [defaults {:read-only false}
         opts (merge defaults (args-map opts-args))]
     (when (.contains shelf-name ":")
@@ -200,7 +202,7 @@
 
 
 (defn open-cupboard [cb-dir-arg & opts-args]
-  (let [cb-dir (file cb-dir-arg)
+  (let [#^java.io.File cb-dir (file cb-dir-arg)
         cb-env-new (do (when (and (.exists cb-dir) (.isFile cb-dir))
                          (throw (RuntimeException.
                                  (str cb-dir " is a file, not a database directory"))))
@@ -260,7 +262,7 @@
   (let [defaults {:cupboard *cupboard*}
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)]
-    (filter #(and (not (.contains % ":")) (not (= % *shelves-db-name*)))
+    (filter #(and (not (.contains #^String % ":")) (not (= % *shelves-db-name*)))
             (.getDatabaseNames @(@(cb :cupboard-env) :env-handle)))))
 
 

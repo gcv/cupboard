@@ -71,7 +71,7 @@
       `(if ~condition ~consequent-expr)))
 
 
-(defn starts-with [haystack needle]
+(defn starts-with [#^String haystack #^String needle]
   (.startsWith haystack needle))
 
 
