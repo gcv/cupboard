@@ -220,12 +220,27 @@
            (db-env-close cb-env))))))))
 
 
+(defn open-cupboard!
+  "Like open-cupboard, but always opens the global *cupboard*."
+  [& args]
+  (when (nil? *cupboard*)
+    (def *cupboard* (apply open-cupboard args))))
+
+
 (defn close-cupboard [cb]
   (close-shelves cb)
   (db-close @(cb :shelves-db))
   (reset! (cb :shelves-db) nil)
   (db-env-close @(cb :cupboard-env))
   (reset! (cb :cupboard-env) nil))
+
+
+(defn close-cupboard!
+  "Like close-cupboard, but always closes the global *cupboard*."
+  []
+  (when-not (nil? *cupboard*)
+    (close-cupboard *cupboard*)
+    (def *cupboard* nil)))
 
 
 (defmacro with-open-cupboard [[& args] & body]
