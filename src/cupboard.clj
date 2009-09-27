@@ -281,6 +281,16 @@
             (.getDatabaseNames @(@(cb :cupboard-env) :env-handle)))))
 
 
+(defn shelf-count [& opts-args]
+  (let [defaults {:cupboard *cupboard*
+                  :shelf-name *default-shelf-name*}
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)
+        shelf-name (opts :shelf-name)
+        shelf (get-shelf cb shelf-name)]
+    (db-count (shelf :db))))
+
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; persistent structs
