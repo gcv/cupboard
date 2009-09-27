@@ -26,6 +26,7 @@
                   clojure.lang.Symbol
                   :list
                   :vector
+                  :seq
                   :map
                   :set])
 
@@ -38,6 +39,7 @@
     set? :set
     list? :list
     vector? :vector
+    seq? :seq
     (class data)))
 
 
@@ -96,6 +98,7 @@
           (doseq [e data] (marshal-write tuple-output e)))]
   (def-marshal-write :list seq-write)
   (def-marshal-write :vector seq-write)
+  (def-marshal-write :seq seq-write)
   (def-marshal-write :set seq-write))
 (def-marshal-write :map
   (fn [tuple-output data]
@@ -182,6 +185,7 @@
                     (after-fn res)
                     (recur (inc i) (conj res (unmarshal-read tuple-input))))))))]
   (def-unmarshal-read :list (seq-read-fn (list) reverse))
+  (def-unmarshal-read :seq (seq-read-fn (list) reverse))
   (def-unmarshal-read :vector (seq-read-fn [] identity))
   (def-unmarshal-read :set (seq-read-fn #{} identity)))
 (def-unmarshal-read :map

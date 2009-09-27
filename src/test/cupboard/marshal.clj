@@ -26,6 +26,7 @@
         tkeyword :one
         tsymbol  'one
         tlist    (list 1 2 3)
+        tseq     (lazy-seq (cons 1 (lazy-seq (cons 2 (lazy-seq (cons 3 (lazy-seq)))))))
         tvector  [1 2 3]
         tmap     {:one 1 :two 2 :three 3}
         tset     #{:one 2 'three}]
@@ -49,6 +50,7 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tkeyword)) tkeyword))
     (is (= (unmarshal-db-entry (marshal-db-entry tsymbol)) tsymbol))
     (is (= (unmarshal-db-entry (marshal-db-entry tlist)) tlist))
+    (is (= (unmarshal-db-entry (marshal-db-entry tseq)) tseq))
     (is (= (unmarshal-db-entry (marshal-db-entry tvector)) tvector))
     (is (= (unmarshal-db-entry (marshal-db-entry tmap)) tmap))
     (is (= (unmarshal-db-entry (marshal-db-entry tset)) tset))))
