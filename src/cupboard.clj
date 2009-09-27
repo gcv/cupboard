@@ -247,13 +247,13 @@
   (let [[cb-var cb-dir opts]
         (condp = (count args)
           0 (throw (RuntimeException. "invalid with-open-cupboard call"))
-          1 ['*cupboard* (first args) {}]
+          1 ['cupboard/*cupboard* (first args) {}]
           2 [(first args) (second args) {}]
           ;; else
           (if (symbol? (first args))
               [(first args) (second args) (nnext args)]
-              ['*cupboard* (first args) (next args)]))]
-    `(~(if (= cb-var '*cupboard*)
+              ['cupboard/*cupboard* (first args) (next args)]))]
+    `(~(if (= cb-var 'cupboad/*cupboard*)
            'binding
            'let)
       [~cb-var (apply open-cupboard [~cb-dir ~@opts])]
@@ -370,8 +370,8 @@
 
 
 (defmacro with-txn [[& args] & body]
-  (let [[txn-var opts-args] (cond (empty? args) ['*txn* args]
-                                  (keyword? (first args)) ['*txn* args]
+  (let [[txn-var opts-args] (cond (empty? args) ['cupboard/*txn* args]
+                                  (keyword? (first args)) ['cupboard/*txn* args]
                                   :else [(first args) (rest args)])
         defaults {:max-attempts 1
                   :retry-delay-msec 50}
@@ -385,7 +385,7 @@
        ;; recursion. Clojure's recur cannot occur inside a catch block, so
        ;; attempting a retry requires an explicit, stack-eating function call.
        (letfn [(attempt-txn# [attempt#]
-                 (~(if (= txn-var '*txn*) 'binding 'let)
+                 (~(if (= txn-var 'cupboard/*txn*) 'binding 'let)
                   [~txn-var (begin-txn ~direct-opts)]
                     (try
                      ~@body
@@ -514,9 +514,9 @@
   (let [[clauses opts-args] (args-&rest-&keys args)
         defaults {:limit nil
                   :callback identity
-                  :cupboard '*cupboard*
-                  :shelf-name '*default-shelf-name*
-                  :txn '*txn*}
+                  :cupboard 'cupboard/*cupboard*
+                  :shelf-name 'cupboard/*default-shelf-name*
+                  :txn 'cupboard/*txn*}
         opts (merge defaults opts-args)
         callback (opts :callback)
         ;; XXX: This check cannot happen against res-clauses, because
