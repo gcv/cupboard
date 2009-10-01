@@ -111,28 +111,34 @@
 (defn- get-index [cb shelf index-name & opts-args]
   (let [opts (args-map opts-args)
         index-db-name (str (shelf :name) index-name)
-        all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
-    (if (and (contains? all-indices index-name)
-             (not (nil? @(-> all-indices index-name :db-sec-handle))))
-        ;; index already open, just return it
-        (all-indices index-name)
-        ;; else, need to open the index
-        (let [[_ stored-index-opts] (db-get @(cb :shelves-db) index-db-name)
-              index-opts (merge stored-index-opts
-                                (select-keys opts [:sorted-duplicates]))
-              index-open-opts (merge index-opts {:allow-create true
-                                                 :key-creator-fn index-name})
-              index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
-                                    index-db-name index-open-opts)]
-          (when-not (= (db-put @(cb :shelves-db) index-db-name index-opts)
-                       OperationStatus/SUCCESS)
-            (throw (RuntimeException. (str "failed to save metadata about index "
-                                           index-db-name))))
-          (swap! (shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
-                            :index-any-dbs
-                            :index-unique-dbs))
-                 assoc index-name index-db)
-          index-db))))
+        index-lookup (fn []
+                       (let [all-indices (merge @(shelf :index-unique-dbs)
+                                                @(shelf :index-any-dbs))]
+                         (when (and (contains? all-indices index-name)
+                                    (not (nil? @(-> all-indices index-name :db-sec-handle))))
+                           (all-indices index-name))))]
+    (if-let [index (index-lookup)]
+      index
+      (locking (keyword index-db-name) ; XXX: (keyword ...) ensures use of same object as mutex
+        (if-let [index (index-lookup)]
+          index
+          ;; else, need to open the index
+          (let [[_ stored-index-opts] (db-get @(cb :shelves-db) index-db-name)
+                index-opts (merge stored-index-opts
+                                  (select-keys opts [:sorted-duplicates]))
+                index-open-opts (merge index-opts {:allow-create true
+                                                   :key-creator-fn index-name})
+                index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
+                                      index-db-name index-open-opts)]
+            (when-not (= (db-put @(cb :shelves-db) index-db-name index-opts)
+                         OperationStatus/SUCCESS)
+              (throw (RuntimeException. (str "failed to save metadata about index "
+                                             index-db-name))))
+            (swap! (shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
+                              :index-any-dbs
+                              :index-unique-dbs))
+                   assoc index-name index-db)
+            index-db))))))
 
 
 (defn- open-indices [cb shelf]
@@ -159,23 +165,29 @@
     (when (opts :force-reopen)
       (close-shelf cb shelf-name))
     (if (contains? @(cb :shelves) shelf-name)
-        ;; shelf is ready and open, just return it
-        (@(cb :shelves) shelf-name)
-        ;; else, need to open or create the shelf
-        (let [[_ stored-shelf-opts] (db-get @(cb :shelves-db) shelf-name)
-              shelf-opts (merge stored-shelf-opts (select-keys opts [])) ; fill this in as needed
-              open-shelf-opts (merge shelf-opts
-                                     (select-keys opts [:read-only])
-                                     {:allow-create true
-                                      :sorted-duplicates false})
-              shelf-db (db-open @(cb :cupboard-env) shelf-name open-shelf-opts)
-              shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
-          (when-not (= (db-put @(cb :shelves-db) shelf-name shelf-opts)
-                       OperationStatus/SUCCESS)
-            (throw (RuntimeException. (str "failed to save metadata about shelf " shelf-name))))
-          (swap! (cb :shelves) assoc shelf-name shelf)
-          (open-indices cb shelf)
-          shelf))))
+      ;; shelf is ready and open, just return it
+      (@(cb :shelves) shelf-name)
+      ;; not open; must carefully open it
+      (locking (keyword shelf-name)
+        ;; check again in case this thread blocked on the lock
+        (if (contains? @(cb :shelves) shelf-name)
+            (@(cb :shelves) shelf-name)
+            ;; else, need to open or create the shelf
+            (let [[_ stored-shelf-opts] (db-get @(cb :shelves-db) shelf-name)
+                  shelf-opts (merge stored-shelf-opts (select-keys opts [])) ; fill in as needed
+                  open-shelf-opts (merge shelf-opts
+                                         (select-keys opts [:read-only])
+                                         {:allow-create true
+                                          :sorted-duplicates false})
+                  shelf-db (db-open @(cb :cupboard-env) shelf-name open-shelf-opts)
+                  shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
+              (when-not (= (db-put @(cb :shelves-db) shelf-name shelf-opts)
+                           OperationStatus/SUCCESS)
+                (throw (RuntimeException. (str "failed to save metadata about shelf "
+                                               shelf-name))))
+              (swap! (cb :shelves) assoc shelf-name shelf)
+              (open-indices cb shelf)
+              shelf))))))
 
 
 (defn- init-cupboard [cb-env cb-env-new]
@@ -253,7 +265,7 @@
           (if (symbol? (first args))
               [(first args) (second args) (nnext args)]
               ['cupboard/*cupboard* (first args) (next args)]))]
-    `(~(if (= cb-var 'cupboad/*cupboard*)
+    `(~(if (= cb-var 'cupboard/*cupboard*)
            'binding
            'let)
       [~cb-var (apply open-cupboard [~cb-dir ~@opts])]

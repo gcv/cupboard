@@ -320,6 +320,20 @@
       (close-cupboard cb)))))
 
 
+(deftest simple-concurrency
+  (with-open-cupboard [c *cupboard-path*]
+    (let [a1 (agent nil)
+          a2 (agent nil)]
+      (send a1 (fn [_]
+                 (make-instance president ["gw" "George" "Washington" 57] :cupboard c)
+                 (make-instance president ["ja" "John" "Adams" 62] :cupboard c)))
+      (send a2 (fn [_]
+                 (make-instance president ["tj" "Thomas" "Jefferson" 58] :cupboard c)
+                 (make-instance president ["jm" "James" "Madison" 58] :cupboard c)))
+      (await a1 a2)
+      (is (= (shelf-count :cupboard c) 4)))))
+
+
 (deftest passoc!-pdissoc!
   (with-open-cupboard [*cupboard-path*]
     (let [date-gw (localdate "1732-02-22")
