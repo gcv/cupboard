@@ -327,7 +327,8 @@
                  inst-kw-meta-args# (dissoc instance-kw-args# :txn :save)
                  save-instance# (or (not (contains? instance-kw-args# :save))
                                     (instance-kw-args# :save))
-                 inst-kw-save-args# (select-keys instance-kw-args# [:txn])
+                 inst-kw-save-args# (select-keys instance-kw-args#
+                                                 [:cupboard :txn :shelf-name])
                  inst-meta-base# (struct persistence-metadata
                                    (java.util.UUID/randomUUID)
                                    ~idx-uniques ~idx-anys)
