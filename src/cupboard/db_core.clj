@@ -161,10 +161,11 @@
 
 
 (defn db-env-close [db-env]
-  (let [#^Environment env-handle @(db-env :env-handle)]
-    (.cleanLog env-handle)
-    (.close env-handle))
-  (reset! (db-env :env-handle) nil))
+  (try
+   (let [#^Environment env-handle @(db-env :env-handle)]
+     (.cleanLog env-handle)
+     (.close env-handle))
+   (finally (reset! (db-env :env-handle) nil))))
 
 
 (def-with-db-macro with-db-env `db-env-open `db-env-close)
@@ -418,8 +419,9 @@
 
 
 (defn db-close [db]
-  (.close #^Database @(db :db-handle))
-  (reset! (db :db-handle) nil))
+  (try
+   (.close #^Database @(db :db-handle))
+   (finally (reset! (db :db-handle) nil))))
 
 
 (def-with-db-macro with-db `db-open `db-close)
@@ -526,8 +528,9 @@
 
 
 (defn db-sec-close [db-sec]
-  (.close #^SecondaryDatabase @(db-sec :db-sec-handle))
-  (reset! (db-sec :db-sec-handle) nil))
+  (try
+   (.close #^SecondaryDatabase @(db-sec :db-sec-handle))
+   (finally (reset! (db-sec :db-sec-handle) nil))))
 
 
 (def-with-db-macro with-db-sec `db-sec-open `db-sec-close)
@@ -590,8 +593,9 @@
 
 
 (defn db-cursor-close [db-cursor]
-  (.close #^Cursor @(db-cursor :cursor-handle))
-  (reset! (db-cursor :cursor-handle) nil))
+  (try
+   (.close #^Cursor @(db-cursor :cursor-handle))
+   (finally (reset! (db-cursor :cursor-handle) nil))))
 
 
 (def-with-db-macro with-db-cursor `db-cursor-open `db-cursor-close)
@@ -796,8 +800,9 @@
 
 
 (defn db-join-cursor-close [db-join-cursor]
-  (.close #^JoinCursor @(db-join-cursor :join-cursor-handle))
-  (reset! (db-join-cursor :join-cursor-handle) nil))
+  (try
+   (.close #^JoinCursor @(db-join-cursor :join-cursor-handle))
+   (finally (reset! (db-join-cursor :join-cursor-handle) nil))))
 
 
 (def-with-db-macro with-db-join-cursor `db-join-cursor-open `db-join-cursor-close)
