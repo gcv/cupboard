@@ -375,10 +375,11 @@
                   :parent-txn nil       ; XXX: Not supported in Berkeley DB JE yet.
                   :isolation :repeatable-read}
         opts (merge defaults (args-map opts-args))
-        cb (opts :cupboard)]
-    (db-txn-begin @(cb :cupboard-env)
-                  :txn (opts :parent-txn)
-                  :isolation (opts :isolation))))
+        parent-txn (opts :parent-txn)
+        cb (opts :cupboard)
+        direct-opts (merge {:txn parent-txn}
+                           (dissoc opts :cupboard :parent-txn))]
+    (db-txn-begin @(cb :cupboard-env) direct-opts)))
 
 
 (letfn [(parse-args [args]
@@ -408,13 +409,14 @@
         retry-delay-msec (opts :retry-delay-msec)
         direct-opts (dissoc opts :max-attempts :retry-delay-msec)]
     `(let [max-attempts# ~max-attempts
-           retry-delay-msec# ~retry-delay-msec]
+           retry-delay-msec# ~retry-delay-msec
+           direct-opts# ~direct-opts]
        ;; XXX: The deadlock retry construct requires explicit
        ;; recursion. Clojure's recur cannot occur inside a catch block, so
        ;; attempting a retry requires an explicit, stack-eating function call.
        (letfn [(attempt-txn# [attempt#]
                  (~(if (= txn-var 'cupboard/*txn*) 'binding 'let)
-                  [~txn-var (begin-txn ~direct-opts)]
+                  [~txn-var (begin-txn direct-opts#)]
                     (try
                      ~@body
                      (when (= @(~txn-var :status) :open)

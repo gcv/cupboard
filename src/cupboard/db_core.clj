@@ -339,7 +339,7 @@
 ;;; ----------------------------------------------------------------------------
 
 (defn db-txn-begin [db-env & conf-args]
-  (let [defaults {:txn nil              ; parent transaction, if any
+  (let [defaults {:txn nil              ; parent transaction; not supported in JE
                   :isolation :repeatable-read}
         conf (merge defaults (args-map conf-args))
         conf-obj (let [co (TransactionConfig.)]
@@ -355,12 +355,18 @@
                      (= (conf :isolation) :serializable) (.setSerializableIsolation co true))
                    co)
         #^Environment env-handle @(db-env :env-handle)
-        txn (struct txn
-                    (atom :open)
-                    (atom (.beginTransaction env-handle
-                                             (deref* (-> conf :txn :txn-handle))
-                                             conf-obj)))]
-    txn))
+        txn-obj (.beginTransaction env-handle
+                                   (deref* (-> conf :txn :txn-handle))
+                                   conf-obj)]
+    ;; a little more configuration goes here
+    (when (contains? conf :lock-timeout-msec)
+      (.setLockTimeout txn-obj (long (* 1000 (conf :lock-timeout-msec)))))
+    (when (contains? conf :txn-timeout-msec)
+      (.setTxnTimeout txn-obj (long (* 1000 (conf :txn-timeout-msec)))))
+    ;; finally return the transaction
+    (struct txn
+            (atom :open)
+            (atom txn-obj))))
 
 
 (defn db-txn-commit [txn & conf-args]
