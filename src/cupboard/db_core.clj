@@ -152,6 +152,16 @@
     (when (contains? conf :cleaner-threads)
       (.setConfigParam conf-obj EnvironmentConfig/CLEANER_THREADS
                        (str (conf :cleaner-threads))))
+    ;; TXN_DEADLOCK_STACK_TRACE causes deadlock messages to also print a stack trace
+    ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#23
+    (when (contains? conf :txn-deadlock-stack-trace)
+      (.setConfigParam conf-obj EnvironmentConfig/TXN_DEADLOCK_STACK_TRACE
+                       (str (conf :txn-deadlock-stack-trace))))
+    ;; TXN_DUMP_LOCKS causes deadlock messages to also print the full lock table
+    ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#23
+    (when (contains? conf :txn-dump-locks)
+      (.setConfigParam conf-obj EnvironmentConfig/TXN_DUMP_LOCKS
+                       (str (conf :txn-dump-locks))))
     ;; make the environment area and open it
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
