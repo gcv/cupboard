@@ -111,7 +111,8 @@
                   :read-only false
                   :transactional false
                   :shared-cache false
-                  :txn-timeout 0        ; in microseconds
+                  :lock-timeout-msec 500
+                  :txn-timeout-msec 0
                   :txn-no-sync false
                   :txn-write-no-sync false
                   :txn-serializable-isolation false}
@@ -122,7 +123,8 @@
                    (.setReadOnly (conf :read-only))
                    (.setTransactional (conf :transactional))
                    (.setSharedCache (conf :shared-cache))
-                   (.setTxnTimeout (conf :txn-timeout))
+                   (.setLockTimeout (long (* 1000 (conf :lock-timeout-msec))))
+                   (.setTxnTimeout (long (* 1000 (conf :txn-timeout-msec))))
                    (.setTxnNoSync (conf :txn-no-sync))
                    (.setTxnWriteNoSync (conf :txn-write-no-sync))
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
