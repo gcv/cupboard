@@ -90,14 +90,16 @@
           ;; Closing the index database should be safe even without a
           ;; transaction; get-index ensures that an index database is open when
           ;; needed.
-          (db-sec-close index-db)
-          (swap! (shelf index-type) dissoc index-name)
+          (try
+           (db-sec-close index-db)
+           (finally (swap! (shelf index-type) dissoc index-name)))
           (when (opts :remove)
             (db-env-remove-db @(cb :cupboard-env) index-db-name :txn txn)
             (db-delete @(cb :shelves-db) index-db-name :txn txn)))))
     ;; close and dissociate the shelf primary database
-    (db-close (shelf :db))
-    (swap! shelves dissoc shelf-name)
+    (try
+     (db-close (shelf :db))
+     (finally (swap! shelves dissoc shelf-name)))
     (when (opts :remove)
       (db-env-remove-db @(cb :cupboard-env) shelf-name :txn txn)
       (db-delete @(cb :shelves-db) shelf-name :txn txn))))
@@ -241,18 +243,21 @@
 
 (defn close-cupboard [cb]
   (close-shelves cb)
-  (db-close @(cb :shelves-db))
-  (reset! (cb :shelves-db) nil)
-  (db-env-close @(cb :cupboard-env))
-  (reset! (cb :cupboard-env) nil))
+  (try
+   (db-close @(cb :shelves-db))
+   (finally (reset! (cb :shelves-db) nil)))
+  (try
+   (db-env-close @(cb :cupboard-env))
+   (finally (reset! (cb :cupboard-env) nil))))
 
 
 (defn close-cupboard!
   "Like close-cupboard, but always closes the global *cupboard*."
   []
   (when-not (nil? *cupboard*)
-    (close-cupboard *cupboard*)
-    (def *cupboard* nil)))
+    (try
+     (close-cupboard *cupboard*)
+     (finally (def *cupboard* nil)))))
 
 
 (defmacro with-open-cupboard [[& args] & body]
