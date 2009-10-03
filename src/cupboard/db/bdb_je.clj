@@ -1,4 +1,4 @@
-(ns cupboard.db-core
+(ns cupboard.db.bdb-je
   (:use [cupboard utils marshal])
   (:use [clojure.contrib java-utils])
   (:import [java.io File])

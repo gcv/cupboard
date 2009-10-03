@@ -1,7 +1,7 @@
-(ns cupboard
+(ns cupboard.core
   (:use [clojure set])
   (:use [clojure.contrib def str-utils java-utils])
-  (:use [cupboard utils db-core])
+  (:use cupboard.utils cupboard.db.bdb-je)
   (:import [com.sleepycat.je OperationStatus DatabaseException DeadlockException]))
 
 
@@ -11,13 +11,13 @@
 ;;;
 ;;; These variables have meaningful global identity. Code which does not need to
 ;;; explicitly track its own Cupboard instances and which uses the common case
-;;; of cupboard/with-transaction relies on them.
+;;; of cupboard.core/with-transaction relies on them.
 ;;;
 ;;; Then, (1) macros which want to use them perform intentional variable capture
-;;; on cupboard/*cupboard* (using the form ~'cupboard/*cupboard*) and use them
-;;; in binding macros, and (2) functions which want to use them default to
-;;; cupboard/*cupboard* and cupboard/*txn* as :cupboard and :txn optional
-;;; arguments.
+;;; on cupboard.core/*cupboard* (using the form ~'cupboard.core/*cupboard*) and
+;;; use them in binding macros, and (2) functions which want to use them default
+;;; to cupboard.core/*cupboard* and cupboard.core/*txn* as :cupboard and :txn
+;;; optional arguments.
 ;;; ----------------------------------------------------------------------------
 
 (defonce *cupboard* nil)
@@ -264,13 +264,13 @@
   (let [[cb-var cb-dir opts]
         (condp = (count args)
           0 (throw (RuntimeException. "invalid with-open-cupboard call"))
-          1 ['cupboard/*cupboard* (first args) {}]
+          1 ['cupboard.core/*cupboard* (first args) {}]
           2 [(first args) (second args) {}]
           ;; else
           (if (symbol? (first args))
               [(first args) (second args) (nnext args)]
-              ['cupboard/*cupboard* (first args) (next args)]))]
-    `(~(if (= cb-var 'cupboard/*cupboard*)
+              ['cupboard.core/*cupboard* (first args) (next args)]))]
+    `(~(if (= cb-var 'cupboard.core/*cupboard*)
            'binding
            'let)
       [~cb-var (apply open-cupboard [~cb-dir ~@opts])]
@@ -399,8 +399,8 @@
 
 
 (defmacro with-txn [[& args] & body]
-  (let [[txn-var opts-args] (cond (empty? args) ['cupboard/*txn* args]
-                                  (keyword? (first args)) ['cupboard/*txn* args]
+  (let [[txn-var opts-args] (cond (empty? args) ['cupboard.core/*txn* args]
+                                  (keyword? (first args)) ['cupboard.core/*txn* args]
                                   :else [(first args) (rest args)])
         defaults {:max-attempts 1
                   :retry-delay-msec 50}
@@ -415,7 +415,7 @@
        ;; recursion. Clojure's recur cannot occur inside a catch block, so
        ;; attempting a retry requires an explicit, stack-eating function call.
        (letfn [(attempt-txn# [attempt#]
-                 (~(if (= txn-var 'cupboard/*txn*) 'binding 'let)
+                 (~(if (= txn-var 'cupboard.core/*txn*) 'binding 'let)
                   [~txn-var (begin-txn direct-opts#)]
                     (try
                      ~@body
@@ -441,9 +441,9 @@
 ;;; ----------------------------------------------------------------------------
 
 (defn- db-res->cb-struct
-  "Takes a raw result returned from a db-core routine and converts it into a map
-   with metadata like the ones created by make-instance. Unless the :struct
-   argument is given, returns a hash-map instance.
+  "Takes a raw result returned from a db routine and converts it into a map with
+   metadata like the ones created by make-instance. Unless the :struct argument
+   is given, returns a hash-map instance.
 
    Optional keyword argument:
      :struct --- make the result a struct-map of the given type"
@@ -544,9 +544,9 @@
   (let [[clauses opts-args] (args-&rest-&keys args)
         defaults {:limit nil
                   :callback identity
-                  :cupboard 'cupboard/*cupboard*
-                  :shelf-name 'cupboard/*default-shelf-name*
-                  :txn 'cupboard/*txn*}
+                  :cupboard 'cupboard.core/*cupboard*
+                  :shelf-name 'cupboard.core/*default-shelf-name*
+                  :txn 'cupboard.core/*txn*}
         opts (merge defaults opts-args)
         callback (opts :callback)
         ;; XXX: This check cannot happen against res-clauses, because
@@ -578,8 +578,8 @@
                             (take limit# xres#)))]
        (~(if use-natural-join
              ;; must use fully-qualified names
-             'cupboard.db-core/db-join-cursor-close
-             'cupboard.db-core/db-cursor-close)
+             'cupboard.db.bdb-je/db-join-cursor-close
+             'cupboard.db.bdb-je/db-cursor-close)
         cursor#)
        lres#)))
 

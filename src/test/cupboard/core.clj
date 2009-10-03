@@ -1,7 +1,7 @@
-(ns test.cupboard
+(ns test.cupboard.core
   (:use [clojure.contrib test-is])
-  (:use cupboard cupboard.utils)
-  (:require [cupboard.db-core :as db-core]))
+  (:use cupboard.core cupboard.utils)
+  (:require [cupboard.db.bdb-je :as bdb-je]))
 
 
 
@@ -132,7 +132,7 @@
       (close-cupboard @cb)))
 
   (testing "check the correctness of the cupboard databases"
-    (db-core/with-db-env [env *cupboard-path*]
+    (bdb-je/with-db-env [env *cupboard-path*]
       (let [idx-name-age (str *default-shelf-name* :age)
             idx-name-bank-acct (str *default-shelf-name* :bank-acct)
             idx-name-first-name (str *default-shelf-name* :first-name)
@@ -144,20 +144,20 @@
                    idx-name-age idx-name-bank-acct idx-name-first-name
                    idx-name-last-name idx-name-login})))
         (testing "checking _shelves"
-          (db-core/with-db [shelves-db env *shelves-db-name*]
-            (db-core/with-db-cursor [cur1 shelves-db]
-              (is (= (db-core/db-cursor-first cur1) [*default-shelf-name* {}]))
-              (is (= (db-core/db-cursor-next cur1)
+          (bdb-je/with-db [shelves-db env *shelves-db-name*]
+            (bdb-je/with-db-cursor [cur1 shelves-db]
+              (is (= (bdb-je/db-cursor-first cur1) [*default-shelf-name* {}]))
+              (is (= (bdb-je/db-cursor-next cur1)
                      [idx-name-age {:sorted-duplicates true}]))
-              (is (= (db-core/db-cursor-next cur1)
+              (is (= (bdb-je/db-cursor-next cur1)
                      [idx-name-bank-acct {:sorted-duplicates false}]))
-              (is (= (db-core/db-cursor-next cur1)
+              (is (= (bdb-je/db-cursor-next cur1)
                      [idx-name-first-name {:sorted-duplicates true}]))
-              (is (= (db-core/db-cursor-next cur1)
+              (is (= (bdb-je/db-cursor-next cur1)
                      [idx-name-last-name {:sorted-duplicates true}]))
-              (is (= (db-core/db-cursor-next cur1)
+              (is (= (bdb-je/db-cursor-next cur1)
                      [idx-name-login {:sorted-duplicates false}]))
-              (is (= (db-core/db-cursor-next cur1) [])))))))))
+              (is (= (bdb-je/db-cursor-next cur1) [])))))))))
 
 
 (deftest basics
@@ -426,7 +426,7 @@
                  '(query (= :age 58) (= :last-name "Adams")
                             :callback #(passoc! % :first-name "John Quincy")))]
           (is (= (first (first (rest (rest (rest (first (rest q)))))))
-                 'cupboard/query-natural-join)))
+                 'cupboard.core/query-natural-join)))
         (query (= :age 58) (= :last-name "Adams")
                   :callback #(passoc! % :first-name "John Quincy"))
         (is (= (retrieve :login "jqa") (assoc p6 :first-name "John Quincy"))))
