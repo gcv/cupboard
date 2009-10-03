@@ -572,18 +572,21 @@
            [cursor# raw-res#]
            ~(if use-natural-join
                 `(query-natural-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type)
-                `(query-range-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type))
-           xres# (map callback# raw-res#)
-           limit# ~limit
-           lres# (doall (if (nil? limit#)
-                            xres#
-                            (take limit# xres#)))]
-       (~(if use-natural-join
-             ;; must use fully-qualified names
-             'cupboard.db.bdb-je/db-join-cursor-close
-             'cupboard.db.bdb-je/db-cursor-close)
-        cursor#)
-       lres#)))
+                `(query-range-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type))]
+       (try
+        (let [xres# (map callback# raw-res#)
+              limit# ~limit
+              lres# (doall (if (nil? limit#)
+                               xres#
+                               (take limit# xres#)))]
+          ;; return the limited result here
+          lres#)
+        (finally
+         (~(if use-natural-join
+               ;; must use fully-qualified names
+               'cupboard.db.bdb-je/db-join-cursor-close
+               'cupboard.db.bdb-je/db-cursor-close)
+          cursor#))))))
 
 
 
