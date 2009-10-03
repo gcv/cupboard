@@ -69,7 +69,7 @@
 
 (deftest optional-marshaling
   (let [arg-map {:data "hello"}]
-    (is (not (= 0 (.getSize (marshal-db-entry* arg-map :data)))))
+    (is (not= 0 (.getSize (marshal-db-entry* arg-map :data))))
     (is (= 0 (.getSize (marshal-db-entry* arg-map :key))))))
 
 

@@ -294,7 +294,7 @@
   (let [defaults {:cupboard *cupboard*}
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)]
-    (filter #(and (not (.contains #^String % ":")) (not (= % *shelves-db-name*)))
+    (filter #(and (not (.contains #^String % ":")) (not= % *shelves-db-name*))
             (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle)))))
 
 
