@@ -2,7 +2,7 @@
   (:use [clojure set])
   (:use [clojure.contrib def str-utils java-utils])
   (:use cupboard.utils cupboard.db.bdb-je)
-  (:import [com.sleepycat.je OperationStatus DatabaseException DeadlockException]))
+  (:import [com.sleepycat.je Environment OperationStatus DatabaseException DeadlockException]))
 
 
 
@@ -145,7 +145,7 @@
 
 (defn- open-indices [cb shelf]
   (let [shelf-name (shelf :name)]
-    (doseq [db-name (.getDatabaseNames @(@(cb :cupboard-env) :env-handle))]
+    (doseq [db-name (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle))]
       (let [[found-shelf-name index-name] (re-split #":" db-name)]
         (when (and (not (nil? index-name)) (= shelf-name found-shelf-name))
           (get-index cb shelf (keyword index-name)))))))
@@ -295,7 +295,7 @@
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)]
     (filter #(and (not (.contains #^String % ":")) (not (= % *shelves-db-name*)))
-            (.getDatabaseNames @(@(cb :cupboard-env) :env-handle)))))
+            (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle)))))
 
 
 (defn shelf-count [& opts-args]
