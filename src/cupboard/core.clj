@@ -429,9 +429,11 @@
                              (attempt-txn# (inc attempt#)))
                            (do
                              (rollback ~txn-var)
-                             (throw (RuntimeException.
-                                     (str "deadlock: "
-                                          (.getMessage deadlock#))))))))))]
+                             (throw (RuntimeException. deadlock#)))))
+                     (catch Exception other-error#
+                       (do
+                         (rollback ~txn-var)
+                         (throw (RuntimeException. other-error#)))))))]
          (attempt-txn# 1)))))
 
 
