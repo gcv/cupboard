@@ -402,8 +402,8 @@
   (let [[txn-var opts-args] (cond (empty? args) ['cupboard.core/*txn* args]
                                   (keyword? (first args)) ['cupboard.core/*txn* args]
                                   :else [(first args) (rest args)])
-        defaults {:max-attempts 1
-                  :retry-delay-msec 50}
+        defaults {:max-attempts 5
+                  :retry-delay-msec 10}
         opts (merge defaults (args-map opts-args))
         max-attempts (opts :max-attempts)
         retry-delay-msec (opts :retry-delay-msec)
