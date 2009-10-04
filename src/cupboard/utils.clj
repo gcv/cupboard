@@ -82,7 +82,7 @@
 
 
 ;;; ----------------------------------------------------------------------
-;;; Joda Date wrappers
+;;; Joda Date wrappers and supporting functions
 ;;; ----------------------------------------------------------------------
 
 (defmacro make-jd-wrapper [name jd-type]
@@ -93,6 +93,13 @@
 (make-jd-wrapper localdate LocalDate)
 (make-jd-wrapper localtime LocalTime)
 (make-jd-wrapper localdatetime LocalDateTime)
+
+
+(defn date= [d1 d2] (= (.compareTo d1 d2) 0))
+(defn date< [d1 d2] (= (.compareTo d1 d2) -1))
+(defn date> [d1 d2] (= (.compareTo d1 d2) 1))
+(defn date<= [d1 d2] (let [v (.compareTo d1 d2)] (or (= v -1) (= v 0))))
+(defn date>= [d1 d2] (let [v (.compareTo d1 d2)] (or (= v 1) (= v 0))))
 
 
 

@@ -772,8 +772,13 @@
                         < :back
                         <= :back
                         starts-with :forward
+                        date= :forward
+                        date> :forward
+                        date>= :forward
+                        date< :back
+                        date<= :back
                         :forward))
-        exact (= comparison-fn =)
+        exact (or (= comparison-fn =) (= comparison-fn date=))
         ;; Use this function to extract the value from the database entry which
         ;; the cursor points to which matters for this scan.
         res-compval-fn (if (db-cursor-primary? db-cursor)

@@ -36,3 +36,16 @@
 
 (deftest flattening
   (is (= (flatten '[1 2 (3 [4] 5 "fred") [6 7]]) [1 2 3 4 5 "fred" 6 7])))
+
+
+(deftest date-comparison
+  (let [dt1 (datetime)
+        dt2 (datetime "2009-01-01T15:00")
+        dt3 (datetime "2008-01-01T15:00")]
+    (is (date= dt1 dt1))
+    (is (date< dt3 dt2))
+    (is (date> dt2 dt3))
+    (is (date<= dt1 dt1))
+    (is (date<= dt3 dt2))
+    (is (date>= dt1 dt1))
+    (is (date>= dt2 dt3))))
