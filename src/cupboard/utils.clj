@@ -29,9 +29,9 @@
   or as
     (f :opt1 opt1-val :opt2 opt2-val req1 req2 req3)"
   [args]
-  (let [rests         (atom [])
-        keys          (atom {})
-        args-size     (count args)
+  (let [rests (atom [])
+        keys (atom {})
+        args-size (count args)
         args-size-dec (dec args-size)]
     (cond (= args-size 0) [[] {}]
           (= args-size 1) [args {}]
