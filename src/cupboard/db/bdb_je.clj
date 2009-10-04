@@ -773,8 +773,7 @@
                         <= :back
                         starts-with :forward
                         :forward))
-        ;; only two exact-matching comparison functions: = and starts-with
-        exact (or (= comparison-fn =) (= comparison-fn starts-with))
+        exact (= comparison-fn =)
         ;; Use this function to extract the value from the database entry which
         ;; the cursor points to which matters for this scan.
         res-compval-fn (if (db-cursor-primary? db-cursor)

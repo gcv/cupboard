@@ -292,7 +292,7 @@
                 (is (empty? (db-join-cursor-next j)))))))))))
 
 
-(deftest cursor-scans
+(deftest cursor-scans-1
   (with-db-sec [idx1 *db-env* *db* "idx1"
                 :allow-create true
                 :key-creator-fn :a
@@ -337,6 +337,20 @@
              [ [11 {:a 11}] [12 {:a 12}] ]))
       (is (= (db-cursor-scan cur2 11 :comparison-fn >)
              [ [12 {:a 12}] ])))))
+
+
+(deftest cursor-scans-2
+  (with-db-sec [idx1 *db-env* *db* "idx1"
+                :allow-create true
+                :key-creator-fn :a
+                :sorted-duplicates true]
+    (db-put *db* 1 {:a "abc123"})
+    (db-put *db* 2 {:a "def456"})
+    (db-put *db* 3 {:a "def789"})
+    (db-put *db* 4 {:a "ghi789"})
+    (with-db-cursor [cur1 idx1]
+      (is (= (db-cursor-scan cur1 "def" :comparison-fn starts-with)
+             [ [2 {:a "def456"}] [3 {:a "def789"}] ])))))
 
 
 (deftest transactions
