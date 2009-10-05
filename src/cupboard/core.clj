@@ -540,6 +540,25 @@
        (throw de)))))
 
 
+(defn query-pkey [cb shelf-name txn lock-mode struct-type]
+  (let [shelf (get-shelf cb shelf-name)
+        cursor (db-cursor-open (shelf :db) :txn txn)]
+    (letfn [(scan [prev-res]
+              (if (empty? prev-res)
+                  (lazy-seq)
+                  (lazy-seq (cons prev-res
+                                  (scan (db-cursor-next cursor
+                                                        :lock-mode lock-mode))))))]
+      (try
+       (let [res (scan (db-cursor-first cursor))
+             final-res (map #(db-res->cb-struct % shelf :struct struct-type) res)]
+         [cursor final-res])
+       ;; clean up in case of error
+       (catch DatabaseException de
+         (db-cursor-close cursor)
+         (throw de))))))
+
+
 ;; XXX: Revisit this when Clojure's scopes feature comes to life.
 ;; http://www.assembla.com/spaces/clojure/tickets/2-Scopes
 (defmacro query [& args]
@@ -555,7 +574,10 @@
         ;; res-clauses only resolves the function it uses at runtime. The query
         ;; macro aims to know which join to perform at macroexpansion time
         ;; (although this may change).
-        use-natural-join (every? #(= '= %) (map first clauses))
+        join-type (cond
+                    (empty? clauses) :join-none
+                    (every? #(= '= %) (map first clauses)) :join-natural
+                    :else :join-range)
         ;; Evaluate the individual elements of each clause. Both easier and more
         ;; correct than working with raw symbols.
         res-clauses `(list ~@(map (fn [[f k v]] `(list ~f ~k ~v)) clauses))
@@ -570,9 +592,12 @@
         txn (opts :txn)]
     `(let [callback# ~callback
            [cursor# raw-res#]
-           ~(if use-natural-join
-                `(query-natural-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type)
-                `(query-range-join ~res-clauses ~cb ~shelf-name ~txn ~lock-mode ~struct-type))]
+           ~(condp = join-type
+              :join-none `(query-pkey ~cb ~shelf-name ~txn ~lock-mode ~struct-type)
+              :join-natural `(query-natural-join ~res-clauses ~cb ~shelf-name
+                                                 ~txn ~lock-mode ~struct-type)
+              :join-range `(query-range-join ~res-clauses ~cb ~shelf-name
+                                             ~txn ~lock-mode ~struct-type))]
        (try
         (let [xres# (map callback# raw-res#)
               limit# ~limit
@@ -582,10 +607,11 @@
           ;; return the limited result here
           lres#)
         (finally
-         (~(if use-natural-join
-               ;; must use fully-qualified names
-               'cupboard.db.bdb-je/db-join-cursor-close
-               'cupboard.db.bdb-je/db-cursor-close)
+         (~(condp = join-type
+             ;; must use fully-qualified names
+             :join-none 'cupboard.db.bdb-je/db-cursor-close
+             :join-natural 'cupboard.db.bdb-je/db-join-cursor-close
+             :join-range 'cupboard.db.bdb-je/db-cursor-close)
           cursor#))))))
 
 

@@ -398,6 +398,10 @@
           p9 (make-instance president ["whh" "William" "Harrison" 68])
           p10 (make-instance president ["jt" "John" "Tyler" 51])]
 
+      (testing "no-clause query (list full database contents)"
+        (is (= (set (query))
+               #{p1 p2 p3 p4 p5 p6 p7 p8 p9 p10})))
+
       (testing "basic one-clause query operations"
         (is (= (set (query (= :login "gw"))) #{p1}))
         (is (= (set (query (= :login "aj"))) #{p7}))
