@@ -132,10 +132,12 @@
                                                    :key-creator-fn index-name})
                 index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
                                       index-db-name index-open-opts)]
-            (when-not (= (db-put @(cb :shelves-db) index-db-name index-opts)
-                         OperationStatus/SUCCESS)
-              (throw (RuntimeException. (str "failed to save metadata about index "
-                                             index-db-name))))
+            ;; only save index metadata when necessary
+            (when-not (= stored-index-opts index-opts)
+              (when-not (= (db-put @(cb :shelves-db) index-db-name index-opts)
+                           OperationStatus/SUCCESS)
+                (throw (RuntimeException. (str "failed to save metadata about index "
+                                               index-db-name)))))
             (swap! (shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
                               :index-any-dbs
                               :index-unique-dbs))
@@ -158,8 +160,7 @@
   [cb
    #^String shelf-name
    & opts-args]
-  (let [defaults {:read-only false}
-        opts (merge defaults (args-map opts-args))]
+  (let [opts (args-map opts-args)]
     (when (.contains shelf-name ":")
       (throw (RuntimeException. "shelf names cannot contain ':' characters")))
     (when (= shelf-name *shelves-db-name*)
@@ -178,15 +179,16 @@
             (let [[_ stored-shelf-opts] (db-get @(cb :shelves-db) shelf-name)
                   shelf-opts (merge stored-shelf-opts (select-keys opts [])) ; fill in as needed
                   open-shelf-opts (merge shelf-opts
-                                         (select-keys opts [:read-only])
                                          {:allow-create true
                                           :sorted-duplicates false})
                   shelf-db (db-open @(cb :cupboard-env) shelf-name open-shelf-opts)
                   shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
-              (when-not (= (db-put @(cb :shelves-db) shelf-name shelf-opts)
-                           OperationStatus/SUCCESS)
-                (throw (RuntimeException. (str "failed to save metadata about shelf "
-                                               shelf-name))))
+              ;; save shelf metadata when necessary
+              (when-not (= stored-shelf-opts shelf-opts)
+                (when-not (= (db-put @(cb :shelves-db) shelf-name shelf-opts)
+                             OperationStatus/SUCCESS)
+                  (throw (RuntimeException. (str "failed to save metadata about shelf "
+                                                 shelf-name)))))
               (swap! (cb :shelves) assoc shelf-name shelf)
               (open-indices cb shelf)
               shelf))))))

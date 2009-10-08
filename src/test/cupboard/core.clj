@@ -104,6 +104,21 @@
         (= (empty? @(@cb :shelves-db)))
         (= (empty? @(@cb :shelves))))
 
+      (testing "reopening cupboard read-only, and verifying correctness of reopened state"
+        (reset! cb (open-cupboard *cupboard-path* :read-only true))
+        (verify-shelf *default-shelf-name*)
+        (verify-shelf "presidents")
+        (is (thrown-with-msg? RuntimeException #".*[Rr]ead.+[Oo]nly.*"
+              (query (= :login "gw")
+                     :callback #(delete % :cupboard @cb)
+                     :cupboard @cb))))
+
+      (testing "closing cupboard again"
+        (close-cupboard @cb)
+        (= (nil? @(@cb :cupboard-env)))
+        (= (empty? @(@cb :shelves-db)))
+        (= (empty? @(@cb :shelves))))
+
       (testing "reopening cupboard, and verifying correctness of reopened state"
         (reset! cb (open-cupboard *cupboard-path*))
         (verify-shelf *default-shelf-name*)

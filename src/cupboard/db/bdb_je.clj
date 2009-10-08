@@ -198,7 +198,6 @@
 (defn db-env-close [db-env]
   (try
    (let [#^Environment env-handle @(db-env :env-handle)]
-     (.cleanLog env-handle)
      (.close env-handle))
    (finally (reset! (db-env :env-handle) nil))))
 
@@ -433,17 +432,18 @@
                   :temporary false
                   :sorted-duplicates false
                   :exclusive-create false
-                  :read-only false
                   :transactional (db-env :transactional)}
-        conf (merge defaults (args-map conf-args))
+        #^Environment env-handle @(db-env :env-handle)
+        conf (merge defaults
+                    {:read-only (.. env-handle getConfig getReadOnly)}
+                    (args-map conf-args))
         conf-obj (doto (DatabaseConfig.)
                    (.setAllowCreate (conf :allow-create))
                    (.setDeferredWrite (conf :deferred-write))
                    (.setSortedDuplicates (conf :sorted-duplicates))
                    (.setExclusiveCreate (conf :exclusive-create))
                    (.setReadOnly (conf :read-only))
-                   (.setTransactional (conf :transactional)))
-        #^Environment env-handle @(db-env :env-handle)]
+                   (.setTransactional (conf :transactional)))]
     (struct db
             name
             (conf :sorted-duplicates)
@@ -534,7 +534,11 @@
                   :sorted-duplicates false
                   :allow-populate true
                   :transactional (db-env :transactional)}
-        conf (merge defaults (args-map conf-args))
+        #^Environment env-handle @(db-env :env-handle)
+        #^Database db-primary-handle @(db-primary :db-handle)
+        conf (merge defaults
+                    {:read-only (.. db-primary-handle getConfig getReadOnly)}
+                    (args-map conf-args))
         key-creator-fn (conf :key-creator-fn)
         key-creator (proxy [SecondaryKeyCreator] []
                       (createSecondaryKey [_ key-entry data-entry result-entry]
@@ -549,9 +553,8 @@
                    (.setAllowCreate (conf :allow-create))
                    (.setSortedDuplicates (conf :sorted-duplicates))
                    (.setAllowPopulate (conf :allow-populate))
-                   (.setTransactional (conf :transactional)))
-        #^Environment env-handle @(db-env :env-handle)
-        #^Database db-primary-handle @(db-primary :db-handle)]
+                   (.setReadOnly (conf :read-only))
+                   (.setTransactional (conf :transactional)))]
     (struct db-sec
             name
             key-creator-fn
