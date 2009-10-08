@@ -106,6 +106,54 @@
 ;;; database environments
 ;;; ----------------------------------------------------------------------------
 
+(defn- db-env-set-mutable-opts
+  "conf: a map of options
+   conf-obj: EnvironmentConfig or EnvironmentMutableConfig"
+  [conf conf-obj]
+  (when (contains? conf :cache-percent)
+    (.setCachePercent conf-obj (conf :cache-percent)))
+  (when (contains? conf :cache-bytes)
+    (.setCacheSize conf-obj (conf :cache-bytes)))
+  (when (contains? conf :txn-no-sync)
+    (.setTxnNoSync conf-obj (conf :txn-no-sync)))
+  (when (contains? conf :txn-write-no-sync)
+    (.setTxnWriteNoSync conf-obj (conf :txn-write-no-sync)))
+  ;; CHECKPOINTER_HIGH_PRIORITY helps with large-cache, high-write-rate
+  ;; environments
+  ;; http://blogs.oracle.com/charlesLamb/2009/05/berkeley_db_java_edition_clean.html
+  ;; May result in a cleaner backlog, consider using along with a higher
+  ;; CLEANER_THREADS count.
+  (when (contains? conf :checkpointer-high-priority)
+    (.setConfigParam conf-obj EnvironmentConfig/CHECKPOINTER_HIGH_PRIORITY
+                     (str (conf :checkpointer-high-priority))))
+  (when (contains? conf :n-cleaner-threads)
+    (.setConfigParam conf-obj EnvironmentConfig/CLEANER_THREADS
+                     (str (conf :n-cleaner-threads))))
+  ;; TXN_DEADLOCK_STACK_TRACE causes deadlock messages to also print a stack trace
+  ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#23
+  (when (contains? conf :txn-deadlock-stack-trace)
+    (.setConfigParam conf-obj EnvironmentConfig/TXN_DEADLOCK_STACK_TRACE
+                     (str (conf :txn-deadlock-stack-trace))))
+  ;; TXN_DUMP_LOCKS causes deadlock messages to also print the full lock table
+  ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#23
+  (when (contains? conf :txn-dump-locks)
+    (.setConfigParam conf-obj EnvironmentConfig/TXN_DUMP_LOCKS
+                     (str (conf :txn-dump-locks))))
+  ;; ENV_RUN_CHECKPOINTER determines if the checkpointer thread runs
+  (when (contains? conf :run-checkpointer)
+    (.setConfigParam conf-obj EnvironmentConfig/ENV_RUN_CHECKPOINTER
+                     (str (conf :run-checkpointer))))
+  ;; ENV_RUN_CLEANER determines if the checkpointer thread runs
+  (when (contains? conf :run-cleaner)
+    (.setConfigParam conf-obj EnvironmentConfig/ENV_RUN_CLEANER
+                     (str (conf :run-cleaner))))
+  ;; ENV_RUN_IN_COMPRESSOR determines if the compressor thread runs (removes
+  ;; empty subtrees from the database)
+  (when (contains? conf :run-compressor)
+    (.setConfigParam conf-obj EnvironmentConfig/ENV_RUN_IN_COMPRESSOR
+                     (str (conf :run-compressor)))))
+
+
 (defn db-env-open [dir & conf-args]
   (let [defaults {:allow-create false
                   :read-only false
@@ -125,14 +173,8 @@
                    (.setSharedCache (conf :shared-cache))
                    (.setLockTimeout (long (* 1000 (conf :lock-timeout-msec))))
                    (.setTxnTimeout (long (* 1000 (conf :txn-timeout-msec))))
-                   (.setTxnNoSync (conf :txn-no-sync))
-                   (.setTxnWriteNoSync (conf :txn-write-no-sync))
                    (.setTxnSerializableIsolation (conf :txn-serializable-isolation)))]
-    ;; process various configuration parameters
-    (when (contains? conf :cache-percent)
-      (.setCachePercent conf-obj (conf :cache-percent)))
-    (when (contains? conf :cache-bytes)
-      (.setCacheSize conf-obj (conf :cache-bytes)))
+    ;; process immutable configuration parameters
     (when (contains? conf :db-log-max-bytes)
       (.setConfigParam conf-obj EnvironmentConfig/LOG_FILE_MAX (str (conf :db-log-max-bytes))))
     (when (contains? conf :in-memory-only)
@@ -143,27 +185,8 @@
     (when (contains? conf :db-log-use-odsync)
       (.setConfigParam conf-obj EnvironmentConfig/LOG_USE_ODSYNC
                        (str (conf :db-log-use-odsync))))
-    ;; CHECKPOINTER_HIGH_PRIORITY helps with large-cache, high-write-rate
-    ;; environments
-    ;; http://blogs.oracle.com/charlesLamb/2009/05/berkeley_db_java_edition_clean.html
-    ;; May result in a cleaner backlog, consider using along with a higher
-    ;; CLEANER_THREADS count.
-    (when (contains? conf :checkpointer-high-priority)
-      (.setConfigParam conf-obj EnvironmentConfig/CHECKPOINTER_HIGH_PRIORITY
-                       (str (conf :checkpointer-high-priority))))
-    (when (contains? conf :cleaner-threads)
-      (.setConfigParam conf-obj EnvironmentConfig/CLEANER_THREADS
-                       (str (conf :cleaner-threads))))
-    ;; TXN_DEADLOCK_STACK_TRACE causes deadlock messages to also print a stack trace
-    ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#23
-    (when (contains? conf :txn-deadlock-stack-trace)
-      (.setConfigParam conf-obj EnvironmentConfig/TXN_DEADLOCK_STACK_TRACE
-                       (str (conf :txn-deadlock-stack-trace))))
-    ;; TXN_DUMP_LOCKS causes deadlock messages to also print the full lock table
-    ;; http://www.oracle.com/technology/products/berkeley-db/faq/je_faq.html#23
-    (when (contains? conf :txn-dump-locks)
-      (.setConfigParam conf-obj EnvironmentConfig/TXN_DUMP_LOCKS
-                       (str (conf :txn-dump-locks))))
+    ;; process mutable configuration parameters (shared with db-env-modify)
+    (db-env-set-mutable-opts conf conf-obj)
     ;; make the environment area and open it
     (when-not (.exists dir) (.mkdir dir))
     (struct db-env
@@ -187,14 +210,7 @@
   (let [opts (args-map opts-args)
         #^Environment env-handle @(db-env :env-handle)
         #^EnvironmentMutableConfig conf-obj (.getMutableConfig env-handle)]
-    (when (contains? opts :cache-percent)
-      (.setCachePercent conf-obj (opts :cache-percent)))
-    (when (contains? opts :cache-bytes)
-      (.setCacheSize conf-obj (opts :cache-bytes)))
-    (when (contains? opts :txn-no-sync)
-      (.setTxnNoSync conf-obj (opts :txn-no-sync)))
-    (when (contains? opts :txn-write-no-sync)
-      (.setTxnWriteNoSync conf-obj (opts :txn-write-no-sync)))
+    (db-env-set-mutable-opts opts conf-obj)
     (.setMutableConfig env-handle conf-obj)))
 
 
