@@ -233,7 +233,12 @@
          (try
           (throw e)
           (finally
-           (db-env-close cb-env))))))))
+           (try
+            (db-env-close cb-env)
+            (catch Exception e2
+              (throw (RuntimeException. (str "nested exceptions:\n"
+                                             (.getMessage e2) "\n"
+                                             (.getMessage e)))))))))))))
 
 
 (defn open-cupboard!
