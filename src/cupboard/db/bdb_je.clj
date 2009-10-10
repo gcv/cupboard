@@ -3,7 +3,7 @@
   (:use [clojure.contrib java-utils])
   (:import [java.io File])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CacheMode]
-           [com.sleepycat.je CheckpointConfig StatsConfig]
+           [com.sleepycat.je CheckpointConfig StatsConfig VerifyConfig]
            [com.sleepycat.je Environment EnvironmentConfig EnvironmentMutableConfig]
            [com.sleepycat.je Transaction TransactionConfig]
            [com.sleepycat.je Database DatabaseConfig]
@@ -272,6 +272,24 @@
    background thread."
   [db-env]
   (.compress #^Environment @(db-env :env-handle)))
+
+
+(defn db-env-verify
+  "Runs the expensive environment verification routine."
+  [db-env & conf-args]
+  (let [defaults {:output-stream System/out
+                  :propagate-exceptions false
+                  :aggressive false
+                  :print-info false
+                  :show-progress false}
+        conf (merge defaults (args-map conf-args))
+        conf-obj (doto (VerifyConfig.)
+                   (.setPropagateExceptions (conf :propagate-exceptions))
+                   (.setAggressive (conf :aggressive))
+                   (.setPrintInfo (conf :print-info))
+                   (.setShowProgressStream (conf :output-stream)))
+        #^Environment env-handle @(db-env :env-handle)]
+    (.verify env-handle conf-obj (conf :output-stream))))
 
 
 (defn db-env-stats [db-env & conf-args]
