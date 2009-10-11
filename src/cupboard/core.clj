@@ -315,6 +315,41 @@
     (db-count (shelf :db))))
 
 
+(defn verify-cupboard-env [& opts-args]
+  (let [defaults {:cupboard *cupboard*}
+        opts (merge defaults (args-map opts-args))
+        pass-through-opts (dissoc opts :cupboard)
+        cb (opts :cupboard)]
+    (db-env-verify @(cb :cupboard-env) pass-through-opts)))
+
+
+(defn verify-shelf [& opts-args]
+  (let [defaults {:cupboard *cupboard*
+                  :shelf-name *default-shelf-name*}
+        opts (merge defaults (args-map opts-args))
+        pass-through-opts (dissoc opts :cupboard :shelf-name)
+        cb (opts :cupboard)
+        shelf-name (opts :shelf-name)
+        shelf (get-shelf cb shelf-name)]
+    ;; verify the shelf itself
+    (db-verify (shelf :db) pass-through-opts)
+    ;; verify all indices
+    (doseq [[_ idx] (merge @(shelf :index-any-dbs) @(shelf :index-unique-dbs))]
+      (db-sec-verify idx pass-through-opts))))
+
+
+(defn verify
+  "Very expensive operation. Runs verify on the cupboard environment, every
+   shelf, and every index."
+  [& opts-args]
+  (let [defaults {:cupboard *cupboard*}
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)]
+    (apply verify-cupboard-env opts-args)
+    (doseq [[shelf-name _] @(cb :shelves)]
+      (apply verify-shelf (concat [:shelf-name shelf-name] opts-args)))))
+
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; persistent structs
