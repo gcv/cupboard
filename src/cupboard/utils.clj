@@ -72,7 +72,9 @@
 
 
 (defn starts-with [#^String haystack #^String needle]
-  (.startsWith haystack needle))
+  (if-not (nil? haystack)
+    (.startsWith haystack needle)
+    false))
 
 
 (defn flatten [x]
