@@ -350,6 +350,16 @@
       (apply verify-shelf (concat [:shelf-name shelf-name] opts-args)))))
 
 
+(defn modify-env
+  "Wrapper for tuning cupboard database environments."
+  [& opts-args]
+  (let [defaults {:cupboard *cupboard*}
+        opts (merge defaults (args-map opts-args))
+        pass-through-opts (dissoc opts :cupboard)
+        cb (opts :cupboard)]
+    (db-env-modify @(cb :cupboard-env) pass-through-opts)))
+
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; persistent structs
