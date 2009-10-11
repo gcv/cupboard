@@ -101,6 +101,21 @@
    :read-modify-write LockMode/RMW})
 
 
+(defn db-*-verify-conf-obj [conf-args]
+  (let [defaults {:output-stream System/out
+                  :propagate-exceptions false
+                  :aggressive false
+                  :print-info false
+                  :show-progress false}
+        conf (merge defaults (args-map conf-args))
+        conf-obj (doto (VerifyConfig.)
+                   (.setPropagateExceptions (conf :propagate-exceptions))
+                   (.setAggressive (conf :aggressive))
+                   (.setPrintInfo (conf :print-info))
+                   (.setShowProgressStream (conf :output-stream)))]
+    [conf conf-obj]))
+
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; database environments
@@ -277,17 +292,7 @@
 (defn db-env-verify
   "Runs the expensive environment verification routine."
   [db-env & conf-args]
-  (let [defaults {:output-stream System/out
-                  :propagate-exceptions false
-                  :aggressive false
-                  :print-info false
-                  :show-progress false}
-        conf (merge defaults (args-map conf-args))
-        conf-obj (doto (VerifyConfig.)
-                   (.setPropagateExceptions (conf :propagate-exceptions))
-                   (.setAggressive (conf :aggressive))
-                   (.setPrintInfo (conf :print-info))
-                   (.setShowProgressStream (conf :output-stream)))
+  (let [[conf conf-obj] (db-*-verify-conf-obj conf-args)
         #^Environment env-handle @(db-env :env-handle)]
     (.verify env-handle conf-obj (conf :output-stream))))
 
@@ -540,6 +545,14 @@
   (.count #^Database @(db :db-handle)))
 
 
+(defn db-verify
+  "Runs the expensive database verification routine."
+  [db & conf-args]
+  (let [[conf conf-obj] (db-*-verify-conf-obj conf-args)
+        #^Database db-handle @(db :db-handle)]
+    (.verify db-handle conf-obj)))
+
+
 
 ;;; ----------------------------------------------------------------------------
 ;;; secondary databases (indices)
@@ -616,6 +629,14 @@
         search-entry (marshal-db-entry search-key)
         #^SecondaryDatabase db-sec-handle @(db-sec :db-sec-handle)]
     (.delete db-sec-handle (deref* (-> opts :txn :txn-handle)) search-entry)))
+
+
+(defn db-sec-verify
+  "Runs the expensive secondary database verification routine."
+  [db-sec & conf-args]
+  (let [[conf conf-obj] (db-*-verify-conf-obj conf-args)
+        #^SecondaryDatabase db-sec-handle @(db-sec :db-sec-handle)]
+    (.verify db-sec-handle conf-obj)))
 
 
 
