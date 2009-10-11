@@ -77,6 +77,7 @@
 
 (defn- close-shelf [cb shelf-name & opts-args]
   (let [defaults {:remove false
+                  :truncate false
                   :txn *txn*}
         opts (merge defaults (args-map opts-args))
         txn (opts :txn)
@@ -95,14 +96,18 @@
            (finally (swap! (shelf index-type) dissoc index-name)))
           (when (opts :remove)
             (db-env-remove-db @(cb :cupboard-env) index-db-name :txn txn)
-            (db-delete @(cb :shelves-db) index-db-name :txn txn)))))
+            (db-delete @(cb :shelves-db) index-db-name :txn txn))
+          (when (opts :truncate)
+            (db-env-truncate-db @(cb :cupboard-env) index-db-name :txn txn)))))
     ;; close and dissociate the shelf primary database
     (try
      (db-close (shelf :db))
      (finally (swap! shelves dissoc shelf-name)))
     (when (opts :remove)
       (db-env-remove-db @(cb :cupboard-env) shelf-name :txn txn)
-      (db-delete @(cb :shelves-db) shelf-name :txn txn))))
+      (db-delete @(cb :shelves-db) shelf-name :txn txn))
+    (when (opts :truncate)
+      (db-env-truncate-db @(cb :cupboard-env) shelf-name :txn txn))))
 
 
 (defn- close-shelves [cb]
@@ -313,6 +318,24 @@
         shelf-name (opts :shelf-name)
         shelf (get-shelf cb shelf-name)]
     (db-count (shelf :db))))
+
+
+(defn clear-shelf
+  "Deletes all contents of the shelf, but does not delete the shelf itself or
+   any of its indices."
+  [& opts-args]
+  (let [defaults {:cupboard *cupboard*
+                  :shelf-name *default-shelf-name*}
+        opts (merge defaults (args-map opts-args))
+        cb (opts :cupboard)
+        shelf-name (opts :shelf-name)
+        pass-through-args (merge
+                           {:truncate true}
+                           (dissoc opts :remove :cupboard :shelf-name))]
+    (close-shelf cb shelf-name pass-through-args)
+    ;; reopen the shelf
+    (get-shelf cb shelf-name (dissoc pass-through-args :truncate))
+    nil))
 
 
 (defn verify-cupboard-env [& opts-args]
