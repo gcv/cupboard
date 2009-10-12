@@ -1,8 +1,8 @@
 # task list for the project; ignore for now
 tasks.note
 
-# libraries should not check in their own dependencies
-lib/*.jar
+# libraries should neither check in their own dependencies, nor artifacts
+*.jar
 
 # pre-compiled class files
 classes/
