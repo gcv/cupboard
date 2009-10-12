@@ -1,0 +1,77 @@
+<project name="cupboard" default="package">
+
+
+  <property file="version.properties"/>
+
+  <property name="repository.cupboard" value="http://cloud.github.com/downloads/gcv/cupboard"/>
+  <property name="repository.oracle" value="http://download.oracle.com"/>
+  <property name="repository.maven" value="http://mirrors.ibiblio.org/pub/mirrors/maven2"/>
+
+  <property name="dep.clojure" value="clojure-1.0.0.jar"/>
+  <property name="dep.clojure-contrib" value="clojure-contrib-e0080e64.jar"/>
+  <property name="dep.je" value="je-3.3.87.jar"/>
+  <property name="dep.joda-time" value="joda-time-1.6.jar"/>
+
+
+  <target name="init">
+    <mkdir dir="lib"/>
+    <mkdir dir="classes"/>
+  </target>
+
+
+  <target name="distclean" depends="clean">
+    <delete dir="lib"/>
+  </target>
+
+
+  <target name="clean">
+    <delete>
+      <fileset dir="." includes="*.jar"/>
+    </delete>
+    <delete dir="classes"/>
+  </target>
+
+
+  <target name="deps" depends="init">
+    <get src="${repository.cupboard}/${dep.clojure}"
+         dest="lib/${dep.clojure}" usetimestamp="true"/>
+    <get src="${repository.cupboard}/${dep.clojure-contrib}"
+         dest="lib/${dep.clojure-contrib}" usetimestamp="true"/>
+    <get src="${repository.oracle}/maven/com/sleepycat/je/3.3.87/${dep.je}"
+         dest="lib/${dep.je}" usetimestamp="true"/>
+    <get src="${repository.maven}/joda-time/joda-time/1.6/${dep.joda-time}"
+         dest="lib/${dep.joda-time}" usetimestamp="true"/>
+  </target>
+
+
+  <target name="classpath" depends="deps">
+    <path id="classpath">
+      <fileset dir="lib">
+        <include name="**/*.jar"/>
+      </fileset>
+      <pathelement location="src"/>
+      <pathelement location="classes"/>
+    </path>
+  </target>
+
+
+  <target name="compile" depends="classpath">
+    <java classname="clojure.lang.Compile"
+          classpathref="classpath">
+      <sysproperty key="clojure.compile.path" value="classes"/>
+      <arg value="cupboard.db.bdb-je"/>
+      <arg value="cupboard.core"/>
+    </java>
+  </target>
+
+
+  <target name="package" depends="compile">
+    <jar jarfile="cupboard-${version}.jar">
+      <path location="LICENSE"/>
+      <fileset dir="src" includes="cupboard/**"/>
+      <fileset dir="classes"/>
+    </jar>
+  </target>
+
+
+</project>
