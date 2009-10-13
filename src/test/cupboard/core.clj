@@ -286,13 +286,13 @@
          (.start (Thread. (fn []
                             (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 10]
                               (passoc! gw :bank-acct 1 :cupboard cb)
-                              (Thread/sleep 5)
+                              (Thread/sleep 50)
                               (passoc! ja :bank-acct 2 :cupboard cb))
                             (reset! done-1 true))))
          (.start (Thread. (fn []
-                            (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 50]
+                            (with-txn [:cupboard cb :max-attempts 2 :retry-delay-msec 250]
                               (passoc! ja :bank-acct 3 :cupboard cb)
-                              (Thread/sleep 5)
+                              (Thread/sleep 50)
                               (passoc! gw :bank-acct 4 :cupboard cb))
                             (reset! done-2 true))))
          ;; wait for threads to complete
@@ -300,7 +300,9 @@
            (when-not (and @done-1 @done-2)
              (Thread/sleep 100)
              (recur (inc i))))
-         ;; The first thread has a shorter retry delay, so it should win the race.
+         ;; The first thread has a shorter retry delay, so it should win the
+         ;; race. It commits first, then the second thread overwrites the
+         ;; values.
          (is (= (retrieve :login "gw" :cupboard cb) (assoc gw :bank-acct 4)))
          (is (= (retrieve :login "ja" :cupboard cb) (assoc ja :bank-acct 3))))
 
@@ -442,8 +444,8 @@
 
       (testing "making sure natural joins are used wherever possible"
         (let [q (macroexpand-1
-                 '(query (= :age 58) (= :last-name "Adams")
-                            :callback #(passoc! % :first-name "John Quincy")))]
+                 '(cupboard.core/query (= :age 58) (= :last-name "Adams")
+                                       :callback #(passoc! % :first-name "John Quincy")))]
           (is (= (first (first (rest (rest (rest (first (rest q)))))))
                  'cupboard.core/query-natural-join)))
         (query (= :age 58) (= :last-name "Adams")

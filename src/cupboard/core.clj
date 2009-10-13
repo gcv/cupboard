@@ -297,9 +297,7 @@
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)
         txn (opts :txn)]
-    (when-not (= (close-shelf cb shelf-name :remove true :txn txn)
-                 OperationStatus/SUCCESS)
-      (throw (RuntimeException. "failed to remove shelf " shelf-name)))))
+    (close-shelf cb shelf-name :remove true :txn txn)))
 
 
 (defn list-shelves [& opts-args]
