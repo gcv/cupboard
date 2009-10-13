@@ -61,6 +61,7 @@
       <sysproperty key="clojure.compile.path" value="classes"/>
       <arg value="cupboard.db.bdb-je"/>
       <arg value="cupboard.core"/>
+      <arg value="test.test-all"/>
     </java>
   </target>
 
@@ -71,6 +72,13 @@
       <fileset dir="src" includes="cupboard/**"/>
       <fileset dir="classes"/>
     </jar>
+  </target>
+
+
+  <target name="test" depends="compile">
+    <java classname="test.test_all"
+          fork="true"
+          classpathref="classpath"/>
   </target>
 
 
