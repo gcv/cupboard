@@ -59,7 +59,7 @@
     <java classname="clojure.lang.Compile"
           classpathref="classpath">
       <sysproperty key="clojure.compile.path" value="classes"/>
-      <arg value="cupboard.db.bdb-je"/>
+      <arg value="cupboard.bdb.je"/>
       <arg value="cupboard.core"/>
       <arg value="test.test-all"/>
     </java>

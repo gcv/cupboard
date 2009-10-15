@@ -1,5 +1,5 @@
-(ns cupboard.marshal
-  (:use [cupboard utils])
+(ns cupboard.bdb.je-marshal
+  (:use cupboard.utils)
   (:import [org.joda.time DateTime LocalDate LocalTime LocalDateTime DateTimeZone])
   (:import [com.sleepycat.je DatabaseEntry OperationStatus]
            [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))

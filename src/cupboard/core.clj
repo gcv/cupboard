@@ -1,7 +1,7 @@
 (ns cupboard.core
-  (:use [clojure set])
+  (:use clojure.set)
   (:use [clojure.contrib def str-utils java-utils])
-  (:use cupboard.utils cupboard.db.bdb-je)
+  (:use cupboard.utils cupboard.bdb.je)
   (:import [com.sleepycat.je Environment OperationStatus DatabaseException DeadlockException]))
 
 
@@ -682,9 +682,9 @@
         (finally
          (~(condp = join-type
              ;; must use fully-qualified names
-             :join-none 'cupboard.db.bdb-je/db-cursor-close
-             :join-natural 'cupboard.db.bdb-je/db-join-cursor-close
-             :join-range 'cupboard.db.bdb-je/db-cursor-close)
+             :join-none 'cupboard.bdb.je/db-cursor-close
+             :join-natural 'cupboard.bdb.je/db-join-cursor-close
+             :join-range 'cupboard.bdb.je/db-cursor-close)
           cursor#))))))
 
 

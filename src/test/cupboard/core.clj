@@ -1,7 +1,7 @@
 (ns test.cupboard.core
   (:use [clojure.contrib test-is])
   (:use cupboard.core cupboard.utils)
-  (:require [cupboard.db.bdb-je :as bdb-je]))
+  (:require [cupboard.bdb.je :as je]))
 
 
 
@@ -147,7 +147,7 @@
       (close-cupboard @cb)))
 
   (testing "check the correctness of the cupboard databases"
-    (bdb-je/with-db-env [env *cupboard-path*]
+    (je/with-db-env [env *cupboard-path*]
       (let [idx-name-age (str *default-shelf-name* :age)
             idx-name-bank-acct (str *default-shelf-name* :bank-acct)
             idx-name-first-name (str *default-shelf-name* :first-name)
@@ -159,20 +159,20 @@
                    idx-name-age idx-name-bank-acct idx-name-first-name
                    idx-name-last-name idx-name-login})))
         (testing "checking _shelves"
-          (bdb-je/with-db [shelves-db env *shelves-db-name*]
-            (bdb-je/with-db-cursor [cur1 shelves-db]
-              (is (= (bdb-je/db-cursor-first cur1) [*default-shelf-name* {}]))
-              (is (= (bdb-je/db-cursor-next cur1)
+          (je/with-db [shelves-db env *shelves-db-name*]
+            (je/with-db-cursor [cur1 shelves-db]
+              (is (= (je/db-cursor-first cur1) [*default-shelf-name* {}]))
+              (is (= (je/db-cursor-next cur1)
                      [idx-name-age {:sorted-duplicates true}]))
-              (is (= (bdb-je/db-cursor-next cur1)
+              (is (= (je/db-cursor-next cur1)
                      [idx-name-bank-acct {:sorted-duplicates false}]))
-              (is (= (bdb-je/db-cursor-next cur1)
+              (is (= (je/db-cursor-next cur1)
                      [idx-name-first-name {:sorted-duplicates true}]))
-              (is (= (bdb-je/db-cursor-next cur1)
+              (is (= (je/db-cursor-next cur1)
                      [idx-name-last-name {:sorted-duplicates true}]))
-              (is (= (bdb-je/db-cursor-next cur1)
+              (is (= (je/db-cursor-next cur1)
                      [idx-name-login {:sorted-duplicates false}]))
-              (is (= (bdb-je/db-cursor-next cur1) [])))))))))
+              (is (= (je/db-cursor-next cur1) [])))))))))
 
 
 (deftest basics

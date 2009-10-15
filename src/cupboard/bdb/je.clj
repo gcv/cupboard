@@ -1,6 +1,6 @@
-(ns cupboard.db.bdb-je
-  (:use [cupboard utils marshal])
-  (:use [clojure.contrib java-utils])
+(ns cupboard.bdb.je
+  (:use clojure.contrib.java-utils)
+  (:use cupboard.utils cupboard.bdb.je-marshal)
   (:import [java.io File])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CacheMode]
            [com.sleepycat.je CheckpointConfig StatsConfig VerifyConfig]
