@@ -5,14 +5,15 @@ querying by one or more indices, and ACID transactional semantics.
 
 At its lowest level, Cupboard uses Berkeley DB JE, and contains a fairly
 complete Clojure wrapper for the JE API. This API is available in the
-`cupboard.db.bdb-je` package; some projects may find this code useful on its
+`cupboard.bdb.je` package; some projects may find this code useful on its
 own. The `cupboard.core` package provides a higher-level abstraction.
 
 
 
 ## Sample Code
 
-This code makes some struct-maps representing books and updates them.
+This code makes some struct-maps representing books, saves them into a database,
+and updates them.
 
     (ns examples.cupboard.simple
       (:use clojure.contrib.pprint)
@@ -53,6 +54,9 @@ This example is available in `src/examples/cupboard/simple.clj`. See
 
 ## Dependencies
 
+Cupboard's `build.xml` contains an Ant task which downloads its dependencies,
+including Clojure and clojure-contrib.
+
 * Clojure (version 1.0.0 tested)
 * clojure-contrib (1.0-compatible branch, Git revision e0080e64 tested)
 * Berkeley DB JE (version 3.3.87 tested)
@@ -65,9 +69,16 @@ This example is available in `src/examples/cupboard/simple.clj`. See
 1. Clone the Cupboard Git repository.
 2. Run `ant package`. This pulls down all dependencies and puts them into the
    `lib` directory. Then it compiles Cupboard's source into Java class files and
-   packages it into a jar file.
+   packages everything into a jar file.
 3. Copy the Cupboard jar and its dependencies to wherever you normally copy your
    Clojure dependencies. Make sure to add them to your project's classpath.
+
+
+
+## Documentation
+
+Cupboard's documentation is still a work in progress. Please refer to the `doc`
+directory in the source distribution.
 
 
 
