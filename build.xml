@@ -70,7 +70,7 @@
     <jar jarfile="cupboard-${version}.jar">
       <path location="LICENSE"/>
       <fileset dir="src" includes="cupboard/**"/>
-      <fileset dir="classes"/>
+      <fileset dir="classes" excludes="test/**"/>
     </jar>
   </target>
 
