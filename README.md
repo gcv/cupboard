@@ -47,7 +47,7 @@ and updates them.
     
     (cb/close-cupboard!)
 
-This example is available in `src/examples/cupboard/simple.clj`. See
+This example is available in `src/examples/cupboard/simple.clj`.
 `src/examples/cupboard/gutenberg.clj` uses a few more of Cupboard's features.
 
 
