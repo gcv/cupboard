@@ -1,21 +1,19 @@
-# Cupboard
-
-
-
 ## Basic Concepts
 
-* **cupboard**: corresponds to the concept of a database. A `cupboard` must be
+Cupboard strives to provide a simple interface for persisting Clojure data.
+
+* **cupboard**: corresponds to the concept of a database. A cupboard must be
   opened in a particular directory on a filesystem. Internally implemented as a
-  Berkeley DB environment. `cupboard` objects contain `shelf` objects.
+  Berkeley DB environment. cupboard objects contain shelf objects.
 * **shelf**: contains objects and indices on those objects. Multiple shelves may
   be convenient for some applications. Other applications might just store
   everything on the default shelf.
-* **index**: allows rapid access to an object stored on a shelf by the value of
+* **index**: allows fast access to an object stored on a shelf by the value of
   a particular slot in that object. Indices may be `:unique`, in which case
   insertion of a duplicate results in an error, or `:any`, in which case
   duplicates are permitted.
 * **transaction**: creates an atomic unit of work to be performed on a
-  `cupboard`. A transaction may affect multiple shelves. Transactions can be
+  cupboard. A transaction may affect multiple shelves. Transactions can be
   committed or rolled back. Berkeley DB transactions support deadlock detection,
   and, Cupboard transactions will attempt to retry in case of
   deadlock. Therefore, code wrapped in a transaction should be free of all side
@@ -61,7 +59,7 @@ Functions which manipulate cupboards do not support the default `:cupboard`,
 * `(cb/close-cupboard!)` closes the default cupboard, `cupboard.core/*cupboard*`.
 * `(cb/with-open-cupboard [path] body-forms)` makes sure that the
   body forms execute inside an open default cupboard, and closes it when done. Be
-  careful with spawning threads in side the body, since the scope of the body
+  careful with spawning threads inside the body, since the scope of the body
   may end before the threads end their work.
 * `(cb/with-open-cupboard [cupboard-var path] body-forms)` works as above, but binds the
   open cupboard to `cupboard-var`.
@@ -151,6 +149,8 @@ objects.
 
 ## Shelves
 
+Manipulate and examine shelves using the following functions:
+
 * `(cb/remove-shelf shelf-name :cupboard cupboard-var)` deletes the given shelf
   by name.
 * `(cb/list-shelves :cupboard cupboard-var)` returns a list of all shelves on
@@ -163,6 +163,8 @@ objects.
 
 
 ## Transactions
+
+Start, commit, and abort transactions using the following functions:
 
 * `(cb/begin-txn)` returns an open transaction. It must be either
   committed or rolled back.
@@ -214,7 +216,7 @@ For example:
 Two notes about performance:
 
 1. Note that only using `=` clauses, i.e., performing a natural join, yields the
-   best performance, e.g., `(cb/query (= :key1 val1) (= :key2 val2)`.
+   best performance, e.g., `(cb/query (= :key1 val1) (= :key2 val2))`.
 2. When using ranges anywhere in the query, try to order the clauses in such a
    way that the first clause reduces the result set as much as possible. Due to
    limitations of JE, Cupboard cannot determine the optimal order by
@@ -251,9 +253,12 @@ must explicitly close over those values in the callback definition:
 
 ## Hints and Warnings
 
+A few things to keep in mind:
+
 * A shelf may contain multiple object types, but doing so requires care. If
   their indices have overlapping slot names (e.g., if they all have `:login`
-  slots), then queries may return objects of multiple types.
+  slots), then queries may return objects of multiple types. Be sure that the
+  slot types themselves are the same (see below).
 * Saving an object with a new index defined on it may take time, since other
   objects on that shelf will have to be scanned to see if they need to be added
   to that index.
@@ -273,3 +278,7 @@ must explicitly close over those values in the callback definition:
   Cupboard will save such a slot containing a hash map, the lack of ordering
   guarantees will lead to unexpected results when attempting to retrieve by that
   index.
+* Be careful of scopes and threads when using `with-*` macros.
+* Berkeley DB is generally safe for multiple threads, but not multiple
+  processes. A cupboard may only be opened for writing from one process (JVM
+  instance). Subsequent processes may only open it read-only.
