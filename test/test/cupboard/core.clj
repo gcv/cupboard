@@ -1,6 +1,6 @@
 (ns test.cupboard.core
-  (:use [clojure.contrib test-is])
-  (:use cupboard.core cupboard.utils)
+  (:use [clojure test])
+  (:use [cupboard core utils])
   (:require [cupboard.bdb.je :as je]))
 
 

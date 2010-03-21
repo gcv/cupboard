@@ -1,6 +1,6 @@
 (ns test.cupboard.bdb.je
+  (:use [clojure test])
   (:use cupboard.utils cupboard.bdb.je)
-  (:use [clojure.contrib test-is])
   (:import [com.sleepycat.je OperationStatus DatabaseException]))
 
 

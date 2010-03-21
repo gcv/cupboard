@@ -1,6 +1,6 @@
 (ns test.cupboard.bdb.je-marshal
+  (:use [clojure test])
   (:use cupboard.bdb.je-marshal)
-  (:use [clojure.contrib test-is])
   (:import [org.joda.time DateTime LocalDate LocalTime LocalDateTime DateTimeZone])
   (:import [com.sleepycat.je DatabaseEntry OperationStatus]))
 

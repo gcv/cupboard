@@ -1,6 +1,6 @@
 (ns test.cupboard.utils
-  (:use [cupboard utils])
-  (:use [clojure.contrib test-is]))
+  (:use [clojure test])
+  (:use [cupboard utils]))
 
 
 (deftest args-map-test

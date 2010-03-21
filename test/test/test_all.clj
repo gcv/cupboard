@@ -1,6 +1,6 @@
 (ns test.test-all
   (:gen-class)
-  (:use clojure.contrib.test-is)
+  (:use clojure.test)
   (:require [test.cupboard core utils]
             [test.cupboard.bdb je je-marshal]))
 
