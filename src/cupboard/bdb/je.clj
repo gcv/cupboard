@@ -844,16 +844,13 @@
                            (let [key-creator-fn (-> db-cursor :db :key-creator-fn)]
                              (fn [res] (key-creator-fn (second res)))))]
     (letfn [(scan-to-first []
-              (let [res (atom (db-cursor-search db-cursor indexed-value
-                                                :exact exact :lock-mode lock-mode))]
-                (loop []
-                  (when-not (empty? @res)
-                    (if* (comparison-fn (res-compval-fn @res) indexed-value)
-                         @res
-                         (reset! res (db-cursor-next db-cursor
-                                                     :direction direction
-                                                     :lock-mode lock-mode))
-                         (recur))))))
+              (loop [res (db-cursor-search db-cursor indexed-value
+                                           :exact exact :lock-mode lock-mode)]
+                (when-not (empty? res)
+                  (if* (comparison-fn (res-compval-fn res) indexed-value)
+                       res
+                       (recur (db-cursor-next db-cursor
+                                              :direction direction :lock-mode lock-mode))))))
             (scan [prev-res]
               (if (or (empty? prev-res)
                       (not (comparison-fn (res-compval-fn prev-res) indexed-value)))
