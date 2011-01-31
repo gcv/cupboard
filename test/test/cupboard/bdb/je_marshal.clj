@@ -15,6 +15,7 @@
         tlong    (long 1)
         tbigint  (bigint 1)
         tratio   (/ 1 2)
+	tfloat   (float 1)
         tdouble  1.0
         tstring  "hello world"
         tdate    (java.util.Date.)
@@ -39,6 +40,7 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tlong)) tlong))
     (is (= (unmarshal-db-entry (marshal-db-entry tbigint)) tbigint))
     (is (= (unmarshal-db-entry (marshal-db-entry tratio)) tratio))
+    (is (= (unmarshal-db-entry (marshal-db-entry tfloat)) tfloat))
     (is (= (unmarshal-db-entry (marshal-db-entry tdouble)) tdouble))
     (is (= (unmarshal-db-entry (marshal-db-entry tstring)) tstring))
     (is (= (unmarshal-db-entry (marshal-db-entry tdate)) tdate))
@@ -55,7 +57,19 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tmap)) tmap))
     (is (= (unmarshal-db-entry (marshal-db-entry tset)) tset))))
 
-
+(deftest java-array-marshalling
+  (are [x] (every? true? (map = x (unmarshal-db-entry (marshal-db-entry x))))
+       (boolean-array [true false])
+       (byte-array [(byte 13) (byte 11)])
+       (char-array [(char 11) (char 13)])
+       (double-array [(double 127.5) (double 3.14157)])
+       (float-array [(float 19.2) (float 27.5)])
+       (int-array [1 2 3])
+       (long-array [(long 32769) (long 32770)])
+       (object-array [(java.util.Date.)])
+       (short-array [(short 1) (short 19)])))
+	 
+	
 (deftest other-marshaling
   (let [db-entry-empty    (marshal-db-entry (DatabaseEntry.))
         db-entry-nil      (marshal-db-entry nil)
