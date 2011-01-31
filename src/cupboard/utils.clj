@@ -10,6 +10,7 @@
 ;;; plugging holes in Clojure
 ;;; ----------------------------------------------------------------------
 
+;;; TODO: This should be replaced by the args map destructuring in Clojure 1.2.
 (defn args-map [args]
   (cond
     ;; when called just on a map of arguments
@@ -75,11 +76,6 @@
   (if-not (nil? haystack)
     (.startsWith haystack needle)
     false))
-
-
-(defn flatten [x]
-  (let [s? #(instance? clojure.lang.Sequential %)]
-    (filter (complement s?) (tree-seq s? seq x))))
 
 
 

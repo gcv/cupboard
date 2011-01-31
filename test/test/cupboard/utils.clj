@@ -34,10 +34,6 @@
     (is (nil? (deref* nil)))))
 
 
-(deftest flattening
-  (is (= (flatten '[1 2 (3 [4] 5 "fred") [6 7]]) [1 2 3 4 5 "fred" 6 7])))
-
-
 (deftest date-comparison
   (let [dt1 (datetime)
         dt2 (datetime "2009-01-01T15:00")
