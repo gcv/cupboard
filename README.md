@@ -47,17 +47,17 @@ and updates them.
     
     (cb/close-cupboard!)
 
-This example is available in `src/examples/cupboard/simple.clj`.
-`src/examples/cupboard/gutenberg.clj` uses a few more of Cupboard's features.
+This example is available in `examples/examples/cupboard/simple.clj`.
+`examples/examples/cupboard/gutenberg.clj` uses a few more of Cupboard's features.
 
 
 
 ## Dependencies
 
-* Clojure (version 1.1.0 tested)
-* clojure-contrib (version 1.1.0-compatible)
+* Clojure (version 1.2.0 tested)
+* clojure-contrib (version 1.2.0-compatible)
 * Berkeley DB JE (version 4.0.92 tested)
-* Joda Time (version 1.6 tested)
+* Joda Time (version 1.6.x tested)
 
 Use Leiningen to download Cupboard's dependencies. Alternatively, Cupboard's
 `build.xml` contains an Ant task which downloads its dependencies, including
