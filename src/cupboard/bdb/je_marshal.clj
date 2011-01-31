@@ -1,5 +1,4 @@
 (ns cupboard.bdb.je-marshal
-  (:use cupboard.utils)
   (:import [org.joda.time DateTime LocalDate LocalTime LocalDateTime DateTimeZone])
   (:import [com.sleepycat.je DatabaseEntry OperationStatus]
            [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
@@ -15,6 +14,7 @@
                   java.math.BigInteger
                   clojure.lang.Ratio
                   java.lang.Double
+		  java.lang.Float
                   java.lang.String
                   java.util.Date
                   org.joda.time.DateTime
@@ -28,7 +28,16 @@
                   :vector
                   :seq
                   :map
-                  :set])
+                  :set
+		  (class (boolean-array [])) 
+		  (class (byte-array [])) 
+		  (class (char-array [])) 
+		  (class (double-array []))
+		  (class (float-array []))
+		  (class (int-array []))
+		  (class (long-array []))
+		  (class (object-array []))
+		  (class (short-array []))])
 
 (def *clj-type-codes* (zipmap *clj-types* (range 0 (count *clj-types*))))
 
@@ -67,6 +76,7 @@
     (marshal-write tuple-output (.numerator data))
     (marshal-write tuple-output (.denominator data))))
 (def-marshal-write java.lang.Double .writeSortedDouble)
+(def-marshal-write java.lang.Float .writeSortedFloat)
 (def-marshal-write java.lang.String .writeString)
 (def-marshal-write java.util.Date
   (fn [#^TupleOutput tuple-output #^java.util.Date data]
@@ -99,7 +109,16 @@
   (def-marshal-write :list seq-write)
   (def-marshal-write :vector seq-write)
   (def-marshal-write :seq seq-write)
-  (def-marshal-write :set seq-write))
+  (def-marshal-write :set seq-write)
+  (def-marshal-write (class (boolean-array [])) seq-write)
+  (def-marshal-write (class (byte-array [])) seq-write)
+  (def-marshal-write (class (char-array [])) seq-write)
+  (def-marshal-write (class (double-array [])) seq-write)
+  (def-marshal-write (class (float-array [])) seq-write)
+  (def-marshal-write (class (int-array [])) seq-write)
+  (def-marshal-write (class (long-array [])) seq-write)
+  (def-marshal-write (class (object-array [])) seq-write)
+  (def-marshal-write (class (short-array [])) seq-write))
 (def-marshal-write :map
   (fn [tuple-output data]
     (marshal-write tuple-output (count data))
@@ -152,6 +171,7 @@
                      (unmarshal-read tuple-input)
                      (unmarshal-read tuple-input))))
 (def-unmarshal-read java.lang.Double .readSortedDouble)
+(def-unmarshal-read java.lang.Float .readSortedFloat)
 (def-unmarshal-read java.lang.String .readString)
 (def-unmarshal-read java.util.Date
   (fn [#^TupleInput tuple-input]
@@ -187,7 +207,16 @@
   (def-unmarshal-read :list (seq-read-fn (list) reverse))
   (def-unmarshal-read :seq (seq-read-fn (list) reverse))
   (def-unmarshal-read :vector (seq-read-fn [] identity))
-  (def-unmarshal-read :set (seq-read-fn #{} identity)))
+  (def-unmarshal-read :set (seq-read-fn #{} identity))
+  (def-unmarshal-read (class (boolean-array [])) (seq-read-fn [] boolean-array))
+  (def-unmarshal-read (class (byte-array [])) (seq-read-fn [] byte-array))
+  (def-unmarshal-read (class (char-array [])) (seq-read-fn [] char-array))
+  (def-unmarshal-read (class (double-array []))(seq-read-fn [] double-array))
+  (def-unmarshal-read (class (float-array []))(seq-read-fn [] float-array))
+  (def-unmarshal-read (class (int-array []))(seq-read-fn [] int-array))
+  (def-unmarshal-read (class (long-array []))(seq-read-fn [] long-array))
+  (def-unmarshal-read (class (object-array []))(seq-read-fn [] object-array))
+  (def-unmarshal-read (class (short-array []))(seq-read-fn [] short-array)))
 (def-unmarshal-read :map
   (fn [tuple-input]
     (let [len (unmarshal-read tuple-input)]
