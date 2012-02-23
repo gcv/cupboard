@@ -30,6 +30,8 @@
   <target name="deps" depends="init">
     <get src="${repository.maven}/org/clojure/clojure/1.3.0/clojure-1.3.0.jar"
          dest="lib/clojure-1.3.0.jar" usetimestamp="true"/>
+    <get src="${repository.maven}/org/clojure/core.incubator/0.1.0/core.incubator-0.1.0.jar"
+         dest="lib/core.incubator-0.1.0.jar" usetimestamp="true"/>
     <get src="${repository.maven}/joda-time/joda-time/1.6.2/joda-time-1.6.2.jar"
          dest="lib/joda-time-1.6.2.jar" usetimestamp="true"/>
     <get src="${repository.oracle}/com/sleepycat/je/4.0.92/je-4.0.92.jar"
