@@ -89,7 +89,7 @@
          (finally (~~close-fn ~var#))))))
 
 
-(defonce *lock-modes*
+(defonce ^:dynamic *lock-modes*
   ;; NB: :serializable is not available here, as it does not make sense outside
   ;; a transaction.
   {:read-uncommitted LockMode/READ_UNCOMMITTED
