@@ -1,6 +1,7 @@
 (ns cupboard.core
   (:use clojure.set)
-  (:use [clojure.contrib def str-utils java-utils])
+  (:use [clojure.java.io :only [file]])
+  (:use [clojure.string :only [split]])
   (:use cupboard.utils cupboard.bdb.je)
   (:import [com.sleepycat.je Environment OperationStatus DatabaseException DeadlockException]))
 
@@ -20,8 +21,8 @@
 ;;; optional arguments.
 ;;; ----------------------------------------------------------------------------
 
-(defonce *cupboard* nil)
-(defonce *txn* nil)
+(defonce ^:dynamic *cupboard* nil)
+(defonce ^:dynamic *txn* nil)
 
 
 
@@ -29,8 +30,8 @@
 ;;; useful "constants"
 ;;; ----------------------------------------------------------------------------
 
-(defonce *shelves-db-name* "_shelves")
-(defonce *default-shelf-name* "_default")
+(defonce ^:dynamic *shelves-db-name* "_shelves")
+(defonce ^:dynamic *default-shelf-name* "_default")
 
 
 
@@ -153,7 +154,7 @@
 (defn- open-indices [cb shelf]
   (let [shelf-name (shelf :name)]
     (doseq [db-name (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle))]
-      (let [[found-shelf-name index-name] (re-split #":" db-name)]
+      (let [[found-shelf-name index-name] (split #":" db-name)]
         (when (and (not (nil? index-name)) (= shelf-name found-shelf-name))
           (get-index cb shelf (keyword index-name)))))))
 
@@ -436,7 +437,7 @@
 ;;; cupboard transactions
 ;;; ----------------------------------------------------------------------------
 
-(defmacro- check-txn [txn & body]
+(defmacro check-txn [txn & body]
   `(let [txn# ~txn]                     ; avoid multiple evaluation
      (if (or (nil? txn#) (= @(txn# :status) :open))
          ~@body
