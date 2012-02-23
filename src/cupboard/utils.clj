@@ -1,5 +1,5 @@
 (ns cupboard.utils
-  (:use [clojure.contrib java-utils])
+  (:use [clojure.java.io :only [file]])
   (:import [org.joda.time DateTime LocalDate LocalTime LocalDateTime DateTimeZone])
   (:import [java.io File IOException FileNotFoundException]
            [java.text SimpleDateFormat ParseException]))
