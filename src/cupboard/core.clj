@@ -438,7 +438,7 @@
 ;;; cupboard transactions
 ;;; ----------------------------------------------------------------------------
 
-(defmacro- check-txn [txn & body]
+(defmacro ^{:private true} check-txn [txn & body]
   `(let [txn# ~txn]                     ; avoid multiple evaluation
      (if (or (nil? txn#) (= @(txn# :status) :open))
          ~@body

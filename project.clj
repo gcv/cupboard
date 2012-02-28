@@ -5,4 +5,4 @@
                  [org.clojure/core.incubator "0.1.0"]
                  [com.sleepycat/je "4.0.92"]
                  [joda-time "1.6.2"]]
-  :dev-dependencies [[swank-clojure "1.2.1"]])
+  :dev-dependencies [[swank-clojure "1.4.0"]])

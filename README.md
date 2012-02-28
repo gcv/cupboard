@@ -54,8 +54,7 @@ This example is available in `examples/examples/cupboard/simple.clj`.
 
 ## Dependencies
 
-* Clojure (version 1.2.0 tested)
-* clojure-contrib (version 1.2.0-compatible)
+* Clojure (version 1.3.0 tested)
 * Berkeley DB JE (version 4.0.92 tested)
 * Joda Time (version 1.6.x tested)
 
