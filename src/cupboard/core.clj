@@ -1,7 +1,6 @@
 (ns cupboard.core
   (:use clojure.set)
   (:use [clojure.java.io :only [file]])
-  (:use [clojure.core.incubator :only [defmacro-]])
   (:use [clojure.string :only [split]])
   (:use cupboard.utils cupboard.bdb.je)
   (:import [com.sleepycat.je Environment OperationStatus DatabaseException DeadlockException]))
