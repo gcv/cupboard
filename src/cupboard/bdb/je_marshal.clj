@@ -4,7 +4,7 @@
            [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
 
-(def *clj-types* [nil
+(def ^:dynamic *clj-types* [nil
                   java.lang.Boolean
                   java.lang.Character
                   java.lang.Byte
@@ -13,6 +13,7 @@
                   java.lang.Long
                   java.math.BigInteger
                   clojure.lang.Ratio
+                  clojure.lang.BigInt
                   java.lang.Double
 		  java.lang.Float
                   java.lang.String
@@ -29,9 +30,9 @@
                   :seq
                   :map
                   :set
-		  (class (boolean-array [])) 
-		  (class (byte-array [])) 
-		  (class (char-array [])) 
+		  (class (boolean-array []))
+		  (class (byte-array []))
+		  (class (char-array []))
 		  (class (double-array []))
 		  (class (float-array []))
 		  (class (int-array []))
@@ -39,7 +40,7 @@
 		  (class (object-array []))
 		  (class (short-array []))])
 
-(def *clj-type-codes* (zipmap *clj-types* (range 0 (count *clj-types*))))
+(def ^:dynamic *clj-type-codes* (zipmap *clj-types* (range 0 (count *clj-types*))))
 
 
 (defn clj-type [data]
@@ -75,6 +76,9 @@
   (fn [#^TupleOutput tuple-output #^clojure.lang.Ratio data]
     (marshal-write tuple-output (.numerator data))
     (marshal-write tuple-output (.denominator data))))
+(def-marshal-write clojure.lang.BigInt
+  (fn [#^TupleOutput tuple-output #^clojure.lang.BigInt data]
+    (marshal-write tuple-output (.toBigInteger data))))
 (def-marshal-write java.lang.Double .writeSortedDouble)
 (def-marshal-write java.lang.Float .writeSortedFloat)
 (def-marshal-write java.lang.String .writeString)
@@ -169,6 +173,9 @@
 (def-unmarshal-read clojure.lang.Ratio
   (fn [tuple-input] (clojure.lang.Ratio.
                      (unmarshal-read tuple-input)
+                     (unmarshal-read tuple-input))))
+(def-unmarshal-read clojure.lang.BigInt
+  (fn [tuple-input] (clojure.lang.BigInt/fromBigInteger
                      (unmarshal-read tuple-input))))
 (def-unmarshal-read java.lang.Double .readSortedDouble)
 (def-unmarshal-read java.lang.Float .readSortedFloat)

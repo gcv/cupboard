@@ -9,7 +9,7 @@
 ;;; fixtures
 ;;; ----------------------------------------------------------------------------
 
-(declare *cupboard-path*)
+(declare ^:dynamic *cupboard-path*)
 
 
 (defn fixture-cupboard-path [f]
