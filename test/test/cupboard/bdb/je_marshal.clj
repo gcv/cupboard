@@ -14,6 +14,7 @@
         tint     (int 1)
         tlong    (long 1)
         tbigint  (bigint 1)
+        tbigint2 1N
         tratio   (/ 1 2)
 	tfloat   (float 1)
         tdouble  1.0
@@ -39,6 +40,7 @@
     (is (= (unmarshal-db-entry (marshal-db-entry tint)) tint))
     (is (= (unmarshal-db-entry (marshal-db-entry tlong)) tlong))
     (is (= (unmarshal-db-entry (marshal-db-entry tbigint)) tbigint))
+    (is (= (unmarshal-db-entry (marshal-db-entry tbigint2)) tbigint2))
     (is (= (unmarshal-db-entry (marshal-db-entry tratio)) tratio))
     (is (= (unmarshal-db-entry (marshal-db-entry tfloat)) tfloat))
     (is (= (unmarshal-db-entry (marshal-db-entry tdouble)) tdouble))
@@ -68,8 +70,8 @@
        (long-array [(long 32769) (long 32770)])
        (object-array [(java.util.Date.)])
        (short-array [(short 1) (short 19)])))
-	 
-	
+
+
 (deftest other-marshaling
   (let [db-entry-empty    (marshal-db-entry (DatabaseEntry.))
         db-entry-nil      (marshal-db-entry nil)
