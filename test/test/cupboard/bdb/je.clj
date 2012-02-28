@@ -9,7 +9,7 @@
 ;;; fixtures
 ;;; ----------------------------------------------------------------------------
 
-(declare *db-path* *db-env* *db*)
+(declare ^:dynamic *db-path* ^:dynamic *db-env* ^:dynamic *db*)
 
 
 (defn fixture-db-path [f]
