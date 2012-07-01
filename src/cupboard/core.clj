@@ -22,6 +22,7 @@
 ;;; ----------------------------------------------------------------------------
 
 (defonce ^:dynamic *cupboard* nil)
+
 (defonce ^:dynamic *txn* nil)
 
 
@@ -31,35 +32,20 @@
 ;;; ----------------------------------------------------------------------------
 
 (defonce ^:dynamic *shelves-db-name* "_shelves")
+
 (defonce ^:dynamic *default-shelf-name* "_default")
 
 
 
 ;;; ----------------------------------------------------------------------------
-;;; useful structs
+;;; useful records
 ;;; ----------------------------------------------------------------------------
 
-(defstruct cupboard
-  :cupboard-env
-  :shelves-db
-  :shelves)
+(defrecord Cupboard [cupboard-env shelves-db shelves])
 
+(defrecord Shelf [db name index-unique-dbs index-any-dbs])
 
-(defstruct shelf
-  :db
-  :name
-  ;; Keep index types separate; this simplifies retrieval code since :unique and
-  ;; :any indices require different treatment.
-  :index-unique-dbs
-  :index-any-dbs)
-
-
-(defstruct persistence-metadata
-  ; :cupboard intentionally omitted
-  ; :shelf-name intentionally omitted
-  :primary-key
-  :index-uniques
-  :index-anys)
+(defrecord PersistenceMetadata [primary-key index-uniques index-anys])
 
 
 
@@ -68,6 +54,7 @@
 ;;; ----------------------------------------------------------------------------
 
 (declare list-shelves)
+
 (declare save)
 
 
@@ -81,47 +68,47 @@
                   :truncate false
                   :txn *txn*}
         opts (merge defaults (args-map opts-args))
-        txn (opts :txn)
-        shelves (cb :shelves)
+        txn (:txn opts)
+        shelves (:shelves cb)
         shelf (@shelves shelf-name)]
     ;; close and dissociate index secondary databases
     (doseq [index-type [:index-unique-dbs :index-any-dbs]]
-      (doseq [index-name (keys @(shelf index-type))]
-        (let [index-db (@(shelf index-type) index-name)
-              index-db-name (index-db :name)]
+      (doseq [index-name (keys @(get shelf index-type))]
+        (let [index-db (@(get shelf index-type) index-name)
+              index-db-name (:name index-db)]
           ;; Closing the index database should be safe even without a
           ;; transaction; get-index ensures that an index database is open when
           ;; needed.
           (try
            (db-sec-close index-db)
-           (finally (swap! (shelf index-type) dissoc index-name)))
+           (finally (swap! (get shelf index-type) dissoc index-name)))
           (when (opts :remove)
-            (db-env-remove-db @(cb :cupboard-env) index-db-name :txn txn)
-            (db-delete @(cb :shelves-db) index-db-name :txn txn))
+            (db-env-remove-db @(:cupboard-env cb) index-db-name :txn txn)
+            (db-delete @(:shelves-db cb) index-db-name :txn txn))
           (when (opts :truncate)
-            (db-env-truncate-db @(cb :cupboard-env) index-db-name :txn txn)))))
+            (db-env-truncate-db @(:cupboard-env cb) index-db-name :txn txn)))))
     ;; close and dissociate the shelf primary database
     (try
-     (db-close (shelf :db))
+     (db-close (:db shelf))
      (finally (swap! shelves dissoc shelf-name)))
     (when (opts :remove)
-      (db-env-remove-db @(cb :cupboard-env) shelf-name :txn txn)
-      (db-delete @(cb :shelves-db) shelf-name :txn txn))
+      (db-env-remove-db @(:cupboard-env cb) shelf-name :txn txn)
+      (db-delete @(:shelves-db cb) shelf-name :txn txn))
     (when (opts :truncate)
-      (db-env-truncate-db @(cb :cupboard-env) shelf-name :txn txn))))
+      (db-env-truncate-db @(:cupboard-env cb) shelf-name :txn txn))))
 
 
 (defn- close-shelves [cb]
-  (doseq [shelf-name (keys @(cb :shelves))]
+  (doseq [shelf-name (keys @(:shelves cb))]
     (close-shelf cb shelf-name)))
 
 
 (defn- get-index [cb shelf index-name & opts-args]
   (let [opts (args-map opts-args)
-        index-db-name (str (shelf :name) index-name)
+        index-db-name (str (:name shelf) index-name)
         index-lookup (fn []
-                       (let [all-indices (merge @(shelf :index-unique-dbs)
-                                                @(shelf :index-any-dbs))]
+                       (let [all-indices (merge @(:index-unique-dbs shelf)
+                                                @(:index-any-dbs shelf))]
                          (when (and (contains? all-indices index-name)
                                     (not (nil? @(-> all-indices index-name :db-sec-handle))))
                            (all-indices index-name))))]
@@ -131,29 +118,29 @@
         (if-let [index (index-lookup)]
           index
           ;; else, need to open the index
-          (let [[_ stored-index-opts] (db-get @(cb :shelves-db) index-db-name)
+          (let [[_ stored-index-opts] (db-get @(:shelves-db cb) index-db-name)
                 index-opts (merge stored-index-opts
                                   (select-keys opts [:sorted-duplicates]))
                 index-open-opts (merge index-opts {:allow-create true
                                                    :key-creator-fn index-name})
-                index-db (db-sec-open @(cb :cupboard-env) (shelf :db)
+                index-db (db-sec-open @(:cupboard-env cb) (:db shelf)
                                       index-db-name index-open-opts)]
             ;; only save index metadata when necessary
             (when-not (= stored-index-opts index-opts)
-              (when-not (= (db-put @(cb :shelves-db) index-db-name index-opts)
+              (when-not (= (db-put @(:shelves-db cb) index-db-name index-opts)
                            OperationStatus/SUCCESS)
                 (throw (RuntimeException. (str "failed to save metadata about index "
                                                index-db-name)))))
-            (swap! (shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
-                              :index-any-dbs
-                              :index-unique-dbs))
+            (swap! (get shelf (if (.. @(index-db :db-sec-handle) getConfig getSortedDuplicates)
+                                  :index-any-dbs
+                                  :index-unique-dbs))
                    assoc index-name index-db)
             index-db))))))
 
 
 (defn- open-indices [cb shelf]
-  (let [shelf-name (shelf :name)]
-    (doseq [db-name (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle))]
+  (let [shelf-name (:name shelf)]
+    (doseq [db-name (.getDatabaseNames #^Environment @(@(:cupboard-env cb) :env-handle))]
       (let [[found-shelf-name index-name] (s/split db-name #":")]
         (when (and (not (nil? index-name)) (= shelf-name found-shelf-name))
           (get-index cb shelf (keyword index-name)))))))
@@ -173,29 +160,29 @@
       (throw (RuntimeException. (str "shelf name cannot be " *shelves-db-name*))))
     (when (opts :force-reopen)
       (close-shelf cb shelf-name))
-    (if (contains? @(cb :shelves) shelf-name)
+    (if (contains? @(:shelves cb) shelf-name)
       ;; shelf is ready and open, just return it
-      (@(cb :shelves) shelf-name)
+      (@(:shelves cb) shelf-name)
       ;; not open; must carefully open it
       (locking (keyword shelf-name)
         ;; check again in case this thread blocked on the lock
-        (if (contains? @(cb :shelves) shelf-name)
-            (@(cb :shelves) shelf-name)
+        (if (contains? @(:shelves cb) shelf-name)
+            (@(:shelves cb) shelf-name)
             ;; else, need to open or create the shelf
-            (let [[_ stored-shelf-opts] (db-get @(cb :shelves-db) shelf-name)
+            (let [[_ stored-shelf-opts] (db-get @(:shelves-db cb) shelf-name)
                   shelf-opts (merge stored-shelf-opts (select-keys opts [])) ; fill in as needed
                   open-shelf-opts (merge shelf-opts
                                          {:allow-create true
                                           :sorted-duplicates false})
-                  shelf-db (db-open @(cb :cupboard-env) shelf-name open-shelf-opts)
-                  shelf (struct shelf shelf-db shelf-name (atom {}) (atom {}))]
+                  shelf-db (db-open @(:cupboard-env cb) shelf-name open-shelf-opts)
+                  shelf (Shelf. shelf-db shelf-name (atom {}) (atom {}))]
               ;; save shelf metadata when necessary
               (when-not (= stored-shelf-opts shelf-opts)
-                (when-not (= (db-put @(cb :shelves-db) shelf-name shelf-opts)
+                (when-not (= (db-put @(:shelves-db cb) shelf-name shelf-opts)
                              OperationStatus/SUCCESS)
                   (throw (RuntimeException. (str "failed to save metadata about shelf "
                                                  shelf-name)))))
-              (swap! (cb :shelves) assoc shelf-name shelf)
+              (swap! (:shelves cb) assoc shelf-name shelf)
               (open-indices cb shelf)
               shelf))))))
 
@@ -204,7 +191,7 @@
   (let [shelves-db (db-open cb-env *shelves-db-name*
                             :allow-create cb-env-new :transactional true
                             :sorted-duplicates false)
-        cb (struct cupboard (atom cb-env) (atom shelves-db) (atom {}))]
+        cb (Cupboard. (atom cb-env) (atom shelves-db) (atom {}))]
     (try
      ;; open the default shelf explicitly in a new cupboard
      (when cb-env-new
@@ -257,11 +244,11 @@
 (defn close-cupboard [cb]
   (close-shelves cb)
   (try
-   (db-close @(cb :shelves-db))
-   (finally (reset! (cb :shelves-db) nil)))
+   (db-close @(:shelves-db cb))
+   (finally (reset! (:shelves-db cb) nil)))
   (try
-   (db-env-close @(cb :cupboard-env))
-   (finally (reset! (cb :cupboard-env) nil))))
+   (db-env-close @(:cupboard-env cb))
+   (finally (reset! (:cupboard-env cb) nil))))
 
 
 (defn close-cupboard!
@@ -306,7 +293,7 @@
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)]
     (filter #(and (not (.contains #^String % ":")) (not= % *shelves-db-name*))
-            (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle)))))
+            (.getDatabaseNames #^Environment @(@(:cupboard-env cb) :env-handle)))))
 
 
 (defn shelf-count [& opts-args]
@@ -316,7 +303,7 @@
         cb (opts :cupboard)
         shelf-name (opts :shelf-name)
         shelf (get-shelf cb shelf-name)]
-    (db-count (shelf :db))))
+    (db-count (:db shelf))))
 
 
 (defn clear-shelf
@@ -342,7 +329,7 @@
         opts (merge defaults (args-map opts-args))
         pass-through-opts (dissoc opts :cupboard)
         cb (opts :cupboard)]
-    (db-env-verify @(cb :cupboard-env) pass-through-opts)))
+    (db-env-verify @(:cupboard-env cb) pass-through-opts)))
 
 
 (defn verify-shelf [& opts-args]
@@ -354,9 +341,9 @@
         shelf-name (opts :shelf-name)
         shelf (get-shelf cb shelf-name)]
     ;; verify the shelf itself
-    (db-verify (shelf :db) pass-through-opts)
+    (db-verify (:db shelf) pass-through-opts)
     ;; verify all indices
-    (doseq [[_ idx] (merge @(shelf :index-any-dbs) @(shelf :index-unique-dbs))]
+    (doseq [[_ idx] (merge @(:index-any-dbs shelf) @(:index-unique-dbs shelf))]
       (db-sec-verify idx pass-through-opts))))
 
 
@@ -368,7 +355,7 @@
         opts (merge defaults (args-map opts-args))
         cb (opts :cupboard)]
     (apply verify-cupboard-env opts-args)
-    (doseq [[shelf-name _] @(cb :shelves)]
+    (doseq [[shelf-name _] @(:shelves cb)]
       (apply verify-shelf (concat [:shelf-name shelf-name] opts-args)))))
 
 
@@ -379,7 +366,7 @@
         opts (merge defaults (args-map opts-args))
         pass-through-opts (dissoc opts :cupboard)
         cb (opts :cupboard)]
-    (db-env-modify @(cb :cupboard-env) pass-through-opts)))
+    (db-env-modify @(:cupboard-env cb) pass-through-opts)))
 
 
 
@@ -420,9 +407,9 @@
                                     (instance-kw-args# :save))
                  inst-kw-save-args# (select-keys instance-kw-args#
                                                  [:cupboard :txn :shelf-name])
-                 inst-meta-base# (struct persistence-metadata
-                                   (java.util.UUID/randomUUID)
-                                   ~idx-uniques ~idx-anys)
+                 inst-meta-base# (PersistenceMetadata.
+                                  (java.util.UUID/randomUUID)
+                                  ~idx-uniques ~idx-anys)
                  inst-meta# (merge ~opts inst-kw-meta-args# inst-meta-base#)
                  inst# (with-meta
                          (apply struct (cons struct-type# struct-args#))
@@ -453,7 +440,7 @@
         cb (opts :cupboard)
         direct-opts (merge {:txn parent-txn}
                            (dissoc opts :cupboard :parent-txn))]
-    (db-txn-begin @(cb :cupboard-env) direct-opts)))
+    (db-txn-begin @(:cupboard-env cb) direct-opts)))
 
 
 (letfn [(parse-args [args]
@@ -527,8 +514,8 @@
   (when-not (nil? value)
     (let [opts (args-map opts-args)
           struct-type (opts :struct)    ; may be nil
-          index-unique-dbs @(shelf :index-unique-dbs)
-          index-any-dbs @(shelf :index-any-dbs)
+          index-unique-dbs @(:index-unique-dbs shelf)
+          index-any-dbs @(:index-any-dbs shelf)
           value-key-set (set (keys value))
           metadata {:primary-key pkey
                     :index-uniques (set/intersection (set (keys index-unique-dbs))
@@ -549,7 +536,7 @@
 (defn query-natural-join [clauses cb shelf-name txn lock-mode struct-type]
   (let [cursors (atom [])
         shelf (get-shelf cb shelf-name)
-        all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))]
+        all-indices (merge @(:index-unique-dbs shelf) @(:index-any-dbs shelf))]
     (try
      ;; open and position all cursors
      (doseq [[_ indexed-slot indexed-value] clauses]
@@ -591,7 +578,7 @@
 
 (defn query-range-join [clauses cb shelf-name txn lock-mode struct-type]
   (let [shelf (get-shelf cb shelf-name)
-        all-indices (merge @(shelf :index-unique-dbs) @(shelf :index-any-dbs))
+        all-indices (merge @(:index-unique-dbs shelf) @(:index-any-dbs shelf))
         dominating-clause (determine-dominating-clause clauses)
         [dc-fn-symbol dc-idx dc-val] dominating-clause
         check-fn (fn [entry] ; Make sure entry satisfies all clauses.
@@ -616,7 +603,7 @@
 
 (defn query-pkey [cb shelf-name txn lock-mode struct-type]
   (let [shelf (get-shelf cb shelf-name)
-        cursor (db-cursor-open (shelf :db) :txn txn)]
+        cursor (db-cursor-open (:db shelf) :txn txn)]
     (letfn [(scan [prev-res]
               (if (empty? prev-res)
                   (lazy-seq)
@@ -705,16 +692,16 @@
         cb (opts :cupboard)
         txn (opts :txn)
         shelf (get-shelf cb (opts :shelf-name))
-        pkey (pmeta :primary-key)]
+        pkey (:primary-key pmeta)]
     ;; Verify that the shelf has open indices for pmeta :index-uniques and
     ;; :index-anys.
-    (doseq [unique-index (pmeta :index-uniques)]
+    (doseq [unique-index (:index-uniques pmeta)]
       (get-index cb shelf unique-index :sorted-duplicates false))
-    (doseq [any-index (pmeta :index-anys)]
+    (doseq [any-index (:index-anys pmeta)]
       (get-index cb shelf any-index :sorted-duplicates true))
     ;; Write object!
     (let [res (check-txn txn
-                (db-put (shelf :db) pkey obj :txn txn))]
+                (db-put (:db shelf) pkey obj :txn txn))]
       (if (= res OperationStatus/SUCCESS)
           (with-meta obj pmeta)
           ;; This exception should not occur, right? Shelves do not allow
@@ -732,8 +719,8 @@
         txn (opts :txn)
         shelf-name (opts :shelf-name)
         shelf (get-shelf cb shelf-name)
-        index-unique-dbs @(shelf :index-unique-dbs)
-        index-any-dbs @(shelf :index-any-dbs)]
+        index-unique-dbs @(:index-unique-dbs shelf)
+        index-any-dbs @(:index-any-dbs shelf)]
     ;; If the index-slot is in :index-uniques, retrieve it and return as is.
     ;; If the index-slot is in :index-anys, retrieve a lazy sequence.
     (cond
@@ -750,7 +737,7 @@
       ;; not retrieving an indexed slot
       :else (throw (RuntimeException. (str "attempting retrieve by slot "
                                            index-slot ", not indexed on shelf "
-                                           (shelf :name)))))))
+                                           (:name shelf)))))))
 
 
 (defn delete [obj & opts-args]
@@ -763,7 +750,7 @@
         txn (opts :txn)
         shelf (get-shelf cb (opts :shelf-name))]
     (let [res (check-txn txn
-                (db-delete (shelf :db) (pmeta :primary-key) :txn txn))]
+                (db-delete (:db shelf) (:primary-key pmeta) :txn txn))]
       (when-not (= res OperationStatus/SUCCESS)
         (throw (RuntimeException. (str "failed to delete " obj)))))))
 

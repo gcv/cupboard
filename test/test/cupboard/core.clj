@@ -51,44 +51,44 @@
   (let [cb (atom nil)]
     (letfn [(verify-shelf [shelf-name]
               ;; check :login index
-              (is (contains? @((@(@cb :shelves) shelf-name) :index-unique-dbs) :login))
-              (is (not (-> @((@(@cb :shelves) shelf-name) :index-unique-dbs)
+              (is (contains? @((@(:shelves @cb) shelf-name) :index-unique-dbs) :login))
+              (is (not (-> @((@(:shelves @cb) shelf-name) :index-unique-dbs)
                            :login :sorted-duplicates)))
-              (is (= (-> @((@(@cb :shelves) shelf-name) :index-unique-dbs) :login :name)
+              (is (= (-> @((@(:shelves @cb) shelf-name) :index-unique-dbs) :login :name)
                      (str shelf-name :login)))
               ;; check :bank-acct index
-              (is (contains? @((@(@cb :shelves) shelf-name) :index-unique-dbs)
+              (is (contains? @((@(:shelves @cb) shelf-name) :index-unique-dbs)
                              :bank-acct))
-              (is (not (-> @((@(@cb :shelves) shelf-name) :index-unique-dbs)
+              (is (not (-> @((@(:shelves @cb) shelf-name) :index-unique-dbs)
                            :bank-acct :sorted-duplicates)))
               ;; check :first-name index
-              (is (contains? @((@(@cb :shelves) shelf-name) :index-any-dbs) :first-name))
-              (is (-> @((@(@cb :shelves) shelf-name) :index-any-dbs)
+              (is (contains? @(:index-any-dbs (@(:shelves @cb) shelf-name)) :first-name))
+              (is (-> @(:index-any-dbs (@(:shelves @cb) shelf-name))
                       :first-name :sorted-duplicates))
-              (is (= (-> @((@(@cb :shelves) shelf-name) :index-any-dbs)
+              (is (= (-> @(:index-any-dbs (@(:shelves @cb) shelf-name))
                          :first-name :name)
                      (str shelf-name :first-name)))
               ;; check :last-name index
-              (is (contains? @((@(@cb :shelves) shelf-name) :index-any-dbs) :last-name))
-              (is (-> @((@(@cb :shelves) shelf-name) :index-any-dbs)
+              (is (contains? @(:index-any-dbs (@(:shelves @cb) shelf-name)) :last-name))
+              (is (-> @(:index-any-dbs (@(:shelves @cb) shelf-name))
                       :last-name :sorted-duplicates))
               ;; check :age index
-              (is (contains? @((@(@cb :shelves) shelf-name) :index-any-dbs) :age))
-              (is (-> @((@(@cb :shelves) shelf-name) :index-any-dbs)
+              (is (contains? @((@(:shelves @cb) shelf-name) :index-any-dbs) :age))
+              (is (-> @(:index-any-dbs (@(:shelves @cb) shelf-name))
                       :age :sorted-duplicates)))]
 
       (testing "making an empty cupboard and checking its state"
         (reset! cb (open-cupboard *cupboard-path*))
-        (is (not (nil? @(@cb :cupboard-env))))
-        (is (not (nil? @(@cb :shelves-db))))
-        (is (not (nil? @(@cb :shelves))))
-        (is (not (@(@cb :shelves-db) :sorted-duplicates)))
-        (is (= (count @(@cb :shelves)) 1))
-        (is (= (@(@cb :shelves-db) :name) *shelves-db-name*))
-        (is (contains? @(@cb :shelves) *default-shelf-name*))
-        (is (empty? @((@(@cb :shelves) *default-shelf-name*) :index-unique-dbs)))
-        (is (empty? @((@(@cb :shelves) *default-shelf-name*) :index-any-dbs)))
-        (is (not (-> (@(@cb :shelves) *default-shelf-name*) :db :sorted-duplicates))))
+        (is (not (nil? @(:cupboard-env @cb))))
+        (is (not (nil? @(:shelves-db @cb))))
+        (is (not (nil? @(:shelves @cb))))
+        (is (not (@(:shelves-db @cb) :sorted-duplicates)))
+        (is (= (count @(:shelves @cb)) 1))
+        (is (= (:name @(:shelves-db @cb)) *shelves-db-name*))
+        (is (contains? @(:shelves @cb) *default-shelf-name*))
+        (is (empty? @((@(:shelves @cb) *default-shelf-name*) :index-unique-dbs)))
+        (is (empty? @((@(:shelves @cb) *default-shelf-name*) :index-any-dbs)))
+        (is (not (-> (@(:shelves @cb) *default-shelf-name*) :db :sorted-duplicates))))
 
       (testing "writing something to the default shelf"
         (make-instance president ["gw" "George" "Washington" 57] :cupboard @cb)
@@ -100,9 +100,9 @@
 
       (testing "closing cupboard"
         (close-cupboard @cb)
-        (= (nil? @(@cb :cupboard-env)))
-        (= (empty? @(@cb :shelves-db)))
-        (= (empty? @(@cb :shelves))))
+        (= (nil? @(:cupboard-env @cb)))
+        (= (empty? @(:shelves-db @cb)))
+        (= (empty? @(:shelves @cb))))
 
       (testing "reopening cupboard read-only, and verifying correctness of reopened state"
         (reset! cb (open-cupboard *cupboard-path* :read-only true))
@@ -115,9 +115,9 @@
 
       (testing "closing cupboard again"
         (close-cupboard @cb)
-        (= (nil? @(@cb :cupboard-env)))
-        (= (empty? @(@cb :shelves-db)))
-        (= (empty? @(@cb :shelves))))
+        (= (nil? @(:cupboard-env @cb)))
+        (= (empty? @(:shelves-db @cb)))
+        (= (empty? @(:shelves @cb))))
 
       (testing "reopening cupboard, and verifying correctness of reopened state"
         (reset! cb (open-cupboard *cupboard-path*))
@@ -127,14 +127,14 @@
       (testing "deleting shelf"
         (remove-shelf "presidents" :cupboard @cb)
         (verify-shelf *default-shelf-name*)
-        (is (not (contains? @(@cb :shelves) "presidents")))
+        (is (not (contains? @(:shelves @cb) "presidents")))
         (is (not (contains? (list-shelves :cupboard @cb) "presidents"))))
 
       (testing "closing and reopening cupboard, and verifying correctness"
         (close-cupboard @cb)
         (reset! cb (open-cupboard *cupboard-path*))
         (verify-shelf *default-shelf-name*)
-        (is (not (contains? @(@cb :shelves) "presidents"))))
+        (is (not (contains? @(:shelves @cb) "presidents"))))
 
       (testing "checking invalid shelf names"
         (is (thrown? RuntimeException
