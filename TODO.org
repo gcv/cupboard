@@ -1,0 +1,276 @@
+* High priority improvements [0%]
+  - [ ] Full Clojure 1.4 support
+  - [ ] Read performance
+    (write-me (dments-seq 10000))
+    (read-me)
+    :note:
+(ns cb-work
+  (:require [cupboard.bdb.je :as je]))
+
+
+(def dments0
+     [["monhae" {:26 {:jovenatheart 1}}]
+      ["itsgiohoffmann" {:19 {:xdowhatyoufearx 1},
+                         :31 {:fevilanva 1},
+                         :27 {:boogerminianii 1},
+                         :32 {:mrgdebs 1},
+                         :4 {:laix_x 1},
+                         :3 {:luandroid420 1},
+                         :2 {:mmrosati 1},
+                         :10 {:danilloblizzard 1},
+                         :12 {:boogerminianii 1}}]
+      ["hollyhoodstar" {:24 {:fucg 1, :iamyejide 1},
+                        :28 {:owwshanna2fly 1},
+                        :26 {:prettylikeace 1, :abbeydaqueen 1},
+                        :32 {:prettylikeace 1},
+                        :33 {:hollyhoodstar 1},
+                        :11 {:tunacheckers 1, :prettylikeace 1, :evedancer17 1},
+                        :14 {:therealmsmonroe 2},
+                        :18 {:amexcenturion 1, :mechanicalgirly 3},
+                        :15 {:cassanova86 1}}]])
+
+
+(def dments1
+     [["monhae" [1 {:26 {:jovenatheart 1}}]]
+      ["itsgiohoffmann" [2 {:19 {:xdowhatyoufearx 1},
+                            :31 {:fevilanva 1},
+                            :27 {:boogerminianii 1},
+                            :32 {:mrgdebs 1},
+                            :4 {:laix_x 1},
+                            :3 {:luandroid420 1},
+                            :2 {:mmrosati 1},
+                            :10 {:danilloblizzard 1},
+                            :12 {:boogerminianii 1}}]]
+      ["hollyhoodstar" [3 {:24 {:fucg 1, :iamyejide 1},
+                           :28 {:owwshanna2fly 1},
+                           :26 {:prettylikeace 1, :abbeydaqueen 1},
+                           :32 {:prettylikeace 1},
+                           :33 {:hollyhoodstar 1},
+                           :11 {:tunacheckers 1, :prettylikeace 1, :evedancer17 1},
+                           :14 {:therealmsmonroe 2},
+                           :18 {:amexcenturion 1, :mechanicalgirly 3},
+                           :15 {:cassanova86 1}}]]])
+
+
+;; individual entries
+(defn write-me [dments]
+  (je/with-db-env [e "/tmp/my-db" :allow-create true]
+    (je/with-db [db e "db" :allow-create true]
+      (doseq [[k v] dments]
+        (je/db-put db k v)))))
+
+
+;; individual entries
+(defn read-me []
+  (je/with-db-env [e "/tmp/my-db" :allow-create false :read-only true]
+    (je/with-db [db e "db" :allow-create false :read-only true]
+      (je/with-db-cursor [c db]
+        (loop [res {}
+               [k v] (je/db-cursor-first c)]
+          (if (nil? k)
+              ; res
+              nil
+              (recur (assoc res k v)
+                     (je/db-cursor-next c))))))))
+
+
+;; numbered individual entries
+(defn write-me2 [dments]
+  (je/with-db-env [e "/tmp/my-db2" :allow-create true]
+    (je/with-db [db e "db" :allow-create true]
+      (je/with-db-sec [num-idx e db "num-idx" :allow-create true :key-creator-fn first]
+        (doseq [[k v] dments]
+          (je/db-put db k v))))))
+
+
+;; numbered individual entries
+(defn read-me2 []
+  (je/with-db-env [e "/tmp/my-db2" :allow-create false :read-only true]
+    (je/with-db [db e "db" :allow-create false :read-only true]
+      (je/with-db-sec [num-idx e db "num-idx" :allow-create false :read-only true
+                       :key-creator-fn first]
+        (je/with-db-cursor [c num-idx]
+          (doall (je/db-cursor-scan c 2)))))))
+
+
+(defn dments-seq [n]
+  (let [helper (fn helper []
+                 (lazy-seq (cons [(.toString (java.util.UUID/randomUUID))
+                                  {:19 {:xdowhatyoufearx 1},
+                                   :31 {:fevilanva 1},
+                                   :27 {:boogerminianii 1},
+                                   :32 {:mrgdebs 1},
+                                   :4 {:laix_x 1},
+                                   :3 {:luandroid420 1},
+                                   :2 {:mmrosati 1},
+                                   :10 {:danilloblizzard 1},
+                                   :12 {:boogerminianii 1}}]
+                                 (helper))))]
+    (take n (helper))))
+    :end:
+  - [ ] Deadlock tests all fail
+
+
+* Future?
+  - Investigate HA
+  - Investigate performance improvements
+  - Investigate jconsole plugin
+  - Check if index location is available for query optimizer use
+  - Check if foreign keys are available
+  - Clustering?
+  - Backup mechanisms
+    Making rsync easier to handle? S3?
+    Remember that DbBackup disables log cleaning, an important consideration for
+    making backups safe.
+  - Composite indices
+    Tricky; Berkeley DB cannot do a composite index lookup on a second or later
+    index component.
+  - Object database
+    Now that all Cupboard objects use a UUID as a primary key, a UUID used
+    somewhere inside an object can serve as a reference to another value on the
+    same shelf. This is easier to do with Berkeley DB Core 4.8, since it
+    supports foreign keys.
+
+
+* db-core: Low-level Berkeley DB API [100%]                         :ARCHIVE:
+  - [X] Support for storing and retrieving compound Clojure types
+  - [X] Support clojure.lang.Ratio
+  - [X] Support for dates
+  - [X] Support for nil
+  - [X] Basic database handling
+  - [X] Basic storage operations
+  - [X] Basic retrieval operations on unique primary keys
+  - [X] Secondary database (index) support
+  - [X] Basic retrieval by secondary databases (indices)
+  - [X] Basic retrieval operations on primary keys using cursors
+  - [X] Basic secondary database (index) cursor support
+  - [X] Basic join support
+  - [X] Convenience with-db-* macros
+  - [X] Transaction support
+  - [X] Get rid of use of LockMode objects; switch to :default, :read-committed, etc.
+  - [X] Provide functions to look at running environment statistics (performance)
+  - [X] TODOs in the code (do not forget marshal.clj)
+  - [X] Profile performance
+  - [X] Change all :x-handle structure entries to use atoms.
+        When closed, these atoms should repoint to nil.
+  - [X] Does db-cursor-scan need a special case when :comparison-fn is starts-with?
+        Make sure that a scan to a starts-with string which does not exist does
+        not lead to a full scan and bail out.
+  - [X] Make EnvironmentConfig.LOG_USE_ODSYNC available
+        Document that it is needed to store JE environments on network filesystems.
+        http://blogs.oracle.com/charlesLamb/2009/05/berkeley_db_java_edition_clean.html
+  - [X] Make EnvironmentConfig.CHECKPOINTER_HIGH_PRIORITY available
+        Document that it helps for large-cache, large high-write-rate situations.
+        http://blogs.oracle.com/charlesLamb/2009/05/berkeley_db_java_edition_clean.html
+  - [X] Marshaling LazySeq instances
+
+
+* Cupboard: High-level storage and retrieval API [100%]             :ARCHIVE:
+  - [X] Make storage of instances use UUIDs as primary keys
+  - [X] Multiple shelves in same cupboard with same index slot names break
+        :note:
+    - [X] Change the _shelves database structure
+          _shelves: { "shelf-name" {:p1 v1 :p2 v2}
+                      "shelf-name:index-name" {:p1 v1 :p2 v2} }
+    - [X] Use Environment/getDatabaseNames to figure out which ones to open.
+          Only refer to _shelves in order to check attributes.
+          Databases are named "shelf-name", and indices "shelf-name:index-name".
+    - [X] Save data to _shelves and verify against it on shelf open
+    - [X] Write a test for shelf functionality
+          :end:
+  - [X] Transaction support
+        :note:
+    - [X] Cupboard operations taking place inside a transaction must check that
+          the transaction is :open and not nil before attempting operation —
+          check-txn macro
+    - [X] Should allow access to :no-sync type commit functionality to avoid disk IO
+    - [X] Test the use of let-bound (lexically scoped and named) transactions
+          :end:
+  - [X] cb/assoc*, cb/dissoc*, cb/conj*
+  - [X] Fix functions with ambiguous keyword arguments
+    - [X] (make-instance p "hello" "world" :txn nil :txn *txn*) ->
+          (make-instance p ["hello" "world" :txn nil] :txn *txn*)
+    - [X] assoc* and dissoc*:
+      - [X] assoc*: [obj key val & opts-args] and [obj [kvs] & opts-args]
+      - [X] dissoc*: [obj key & opts-args] and [obj [keys] & opts-args]
+  - [X] Allow cache size and log file size setting in open-cupboard and
+        with-open-cupboard
+  - [X] Deadlock detection should happen at the cupboard layer
+  - [X] cb/query
+        :note:
+    - [X] cb/query implementation
+    - [X] cb/query :callback tests with deletes
+    - [X] Verify that laziness indeed makes :callback a reasonable mechanism
+          for iterating through only part of a dataset
+    - [X] cb/retrieve has a resource leak
+          Fix it to use (cb/query (= :slot value)) on :any indices instead
+          :end:
+  - [X] Check that all public Cupboard functions permit :txn arguments
+  - [X] Write a test to check if the :struct argument works correctly with cb/query
+  - [X] Test with *warn-on-reflection* set to true
+  - [X] Go through tests and document them better (using Clojure test's features)
+  - [X] Change Cupboard's layout to match that required for AOT compilation?
+        cupboard => cupboard.core
+        cupboard.utils => cupboard.utils
+        cupboard.db-core => cupboard.bdb.je
+        cupboard.marshal => cupboard.bdb.marshal
+        cupboard.clj itself copies all symbols from cupboard.core and re-exports them?
+        Then the build can provide AOT-compiled classes for Cupboard.
+        (Will this interfere with debugging? How does clojure.core handle this?)
+  - [X] Do some profiling
+  - [X] Change default cb/with-txn :max-attempts to ~10 and :retry-delay-msec to 1
+  - [X] Fix problem where transactions stay open after something like a KEYEXIST error
+  - [X] Go through the code and replace (not (= ...)) with (not= ...)
+  - [X] Failed cb/query invocations seem to leave open cursors
+  - [X] starts-with does not work correctly
+        (cb/query (starts-with :author "Pushkin")) returns nothing
+  - [X] Add cursor comparison for date types
+  - [X] Add a way to retrieve everything in the database
+  - [X] Support read-only cupboards
+  - [X] db-env-verify, db-verify, db-sec-verify
+  - [X] cb/verify
+  - [X] Test verify routines
+  - [X] Add cb/modify-env as a wrapper for db-env-modify
+
+
+* Releasing Cupboard [100%]                                         :ARCHIVE:
+  - [X] Write a good, separate example
+        http://www.gutenberg.org/wiki/Gutenberg:Feeds
+        http://www.gutenberg.org/feeds/offline-package.tar.bz2
+    - [X] Show query usage, including destructive queries
+    - [X] Show off the ability to return a struct-map type
+  - [X] Rewrite all commits to use a different email address
+        git filter-branch should take care of this.
+        Don't forget to modify the config file in the project for future commits.
+  - [X] Ant
+    - Builds cupboard-VERSION.jar
+    - Does AOT compilation
+    - Make sure that the root of the jar is cupboard, not src/cupboard
+    - Write tasks to download dependencies from github's download area
+  - [X] Add a test_all.clj to src/tests and a corresponding target in build.xml
+  - [X] Write documentation for the entire public Cupboard API
+        Be sure to mention:
+        1. cb/query is not efficient on range joins, but lazy and efficient
+           otherwise.
+        2. How do you make a new index?
+        3. Removing an index currently requires shutting down the application
+           and using routines from db-core.
+        4. Document the use of dates.
+        5. Document that various with-* do not have scopes, so any threads
+           started inside the with-* block will lose anything bound by the with
+           form!
+        6. Document that multiple concurrent transactions writing to the same
+           index entry will definitely deadlock!
+        7. Transactions should have no side effects other than writing to the
+           database.
+        8. Warn against using mixed types in indexed values, since query
+           operations tend to just apply :comparison-fn functions. So (< name
+           "John") does not make sense, and will throw an exception.
+        9. Document that callbacks using explicit :cupboard, :shelf-name,
+           and :txn values must explicitly close over those values in the callback:
+           (query (= :login "gw") :callback #(delete % :cupboard @cb) :cupboard @cb)
+        10. Document that large imports should probably use :run-checkpointer
+            false and :run-cleaner false together; then
+            (cb/modify :run-checkpointer true :run-cleaner true) to re-enable
+            those processes.
+        11. Document database recovery functions.
