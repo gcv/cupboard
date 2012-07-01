@@ -79,14 +79,6 @@ directory in the source distribution.
 
 
 
-## Tasks
-
-* Look into read performance problems
-* Look into failing deadlock tests
-* Convert to Clojure 1.4 (add defrecord support; use keyword argument parsing)
-
-
-
 ## License
 
 Cupboard is distributed under the MIT license, and so has few restrictions

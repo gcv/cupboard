@@ -1,5 +1,9 @@
 * High priority improvements [0%]
   - [ ] Full Clojure 1.4 support
+    + use protocols instead of multimethods
+    + use native keyword argument parsing
+    + add defrecord type support (if possible)
+    + use transients where garbage generation is high
   - [ ] Read performance
     (write-me (dments-seq 10000))
     (read-me)
