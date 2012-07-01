@@ -1,7 +1,6 @@
 (ns cupboard.bdb.je
-  (:use [clojure.java.io :only [file]])
+  (:require [clojure.java.io :as io])
   (:use cupboard.utils cupboard.bdb.je-marshal)
-  (:import [java.io File])
   (:import [com.sleepycat.je DatabaseException DatabaseEntry LockMode CacheMode]
            [com.sleepycat.je CheckpointConfig StatsConfig VerifyConfig]
            [com.sleepycat.je Environment EnvironmentConfig EnvironmentMutableConfig]
@@ -179,7 +178,7 @@
                   :txn-no-sync false
                   :txn-write-no-sync false
                   :txn-serializable-isolation false}
-        #^File dir (file dir)
+        #^java.io.File dir (io/file dir)
         conf (merge defaults (args-map conf-args))
         conf-obj (doto (EnvironmentConfig.)
                    (.setAllowCreate (conf :allow-create))

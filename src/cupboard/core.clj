@@ -1,7 +1,7 @@
 (ns cupboard.core
-  (:use clojure.set)
-  (:use [clojure.java.io :only [file]])
-  (:use [clojure.string :only [split]])
+  (:require [clojure.set :as set]
+            [clojure.java.io :as io]
+            [clojure.string :as s])
   (:use cupboard.utils cupboard.bdb.je)
   (:import [com.sleepycat.je Environment OperationStatus DatabaseException DeadlockException]))
 
@@ -154,7 +154,7 @@
 (defn- open-indices [cb shelf]
   (let [shelf-name (shelf :name)]
     (doseq [db-name (.getDatabaseNames #^Environment @(@(cb :cupboard-env) :env-handle))]
-      (let [[found-shelf-name index-name] (split db-name #":")]
+      (let [[found-shelf-name index-name] (s/split db-name #":")]
         (when (and (not (nil? index-name)) (= shelf-name found-shelf-name))
           (get-index cb shelf (keyword index-name)))))))
 
@@ -224,7 +224,7 @@
 
 
 (defn open-cupboard [cb-dir-arg & opts-args]
-  (let [#^java.io.File cb-dir (file cb-dir-arg)
+  (let [#^java.io.File cb-dir (io/file cb-dir-arg)
         cb-env-new (do (when (and (.exists cb-dir) (.isFile cb-dir))
                          (throw (RuntimeException.
                                  (str cb-dir " is a file, not a database directory"))))
@@ -251,7 +251,7 @@
   "Like open-cupboard, but always opens the global *cupboard*."
   [& args]
   (when (nil? *cupboard*)
-    (def *cupboard* (apply open-cupboard args))))
+    (def ^:dynamic *cupboard* (apply open-cupboard args))))
 
 
 (defn close-cupboard [cb]
@@ -270,7 +270,7 @@
   (when-not (nil? *cupboard*)
     (try
      (close-cupboard *cupboard*)
-     (finally (def *cupboard* nil)))))
+     (finally (def ^:dynamic *cupboard* nil)))))
 
 
 (defmacro with-open-cupboard [[& args] & body]
@@ -531,10 +531,10 @@
           index-any-dbs @(shelf :index-any-dbs)
           value-key-set (set (keys value))
           metadata {:primary-key pkey
-                    :index-uniques (intersection (set (keys index-unique-dbs))
-                                                 value-key-set)
-                    :index-anys (intersection (set (keys index-any-dbs))
-                                              value-key-set)}
+                    :index-uniques (set/intersection (set (keys index-unique-dbs))
+                                                     value-key-set)
+                    :index-anys (set/intersection (set (keys index-any-dbs))
+                                                  value-key-set)}
           xvalue (if (and (not (nil? struct-type)) (contains? opts :struct))
                      (apply struct-map (flatten [struct-type (seq value)]))
                      value)]
