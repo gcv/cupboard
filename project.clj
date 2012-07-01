@@ -1,4 +1,4 @@
-(defproject cupboard "1.0.0-SNAPSHOT"
+(defproject cupboard "1.0beta1"
   :description "An embedded database library for Clojure."
   :repositories {"oracle" "http://download.oracle.com/maven"}
   :dependencies [[org.clojure/clojure "1.3.0"]

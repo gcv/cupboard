@@ -54,26 +54,21 @@ This example is available in `examples/examples/cupboard/simple.clj`.
 
 ## Dependencies
 
-* Clojure (version 1.3.0 tested)
-* Berkeley DB JE (version 4.0.92 tested)
-* Joda Time (version 1.6.x tested)
-
-Use Leiningen to download Cupboard's dependencies. Alternatively, Cupboard's
-`build.xml` contains an Ant task which downloads its dependencies, including
-Clojure and clojure-contrib.
+* Clojure 1.4.0
+* Leiningen 1.7.0
 
 
 
 ## Getting Started
 
-1. Clone the Cupboard Git repository.
-2. Run `ant package`. This pulls down all dependencies and puts them into the
-   `lib` directory. Then it compiles Cupboard's source into Java class files and
-   packages everything into a jar file.
-3. Copy the Cupboard jar and its dependencies to wherever you normally copy your
-   Clojure dependencies. Make sure to add them to your project's classpath.
+Just add `[cupboard "1.0beta1"]` to your `project.clj`. Alternatively, add the
+following to your `pom.xml` file:
 
-Note: Full Leiningen support is forthcoming once Cupboard is more stable.
+    <dependency>
+      <groupId>cupboard</groupId>
+      <artifactId>cupboard</artifactId>
+      <version>1.0beta1</version>
+    </dependency>
 
 
 
