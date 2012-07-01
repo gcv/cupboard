@@ -4,41 +4,42 @@
            [com.sleepycat.bind.tuple TupleBinding TupleInput TupleOutput]))
 
 
-(def ^:dynamic *clj-types* [nil
-                  java.lang.Boolean
-                  java.lang.Character
-                  java.lang.Byte
-                  java.lang.Short
-                  java.lang.Integer
-                  java.lang.Long
-                  java.math.BigInteger
-                  clojure.lang.Ratio
-                  clojure.lang.BigInt
-                  java.lang.Double
-		  java.lang.Float
-                  java.lang.String
-                  java.util.Date
-                  org.joda.time.DateTime
-                  org.joda.time.LocalDate
-                  org.joda.time.LocalTime
-                  org.joda.time.LocalDateTime
-                  java.util.UUID
-                  clojure.lang.Keyword
-                  clojure.lang.Symbol
-                  :list
-                  :vector
-                  :seq
-                  :map
-                  :set
-		  (class (boolean-array []))
-		  (class (byte-array []))
-		  (class (char-array []))
-		  (class (double-array []))
-		  (class (float-array []))
-		  (class (int-array []))
-		  (class (long-array []))
-		  (class (object-array []))
-		  (class (short-array []))])
+(def ^:dynamic *clj-types*
+  [nil
+   java.lang.Boolean
+   java.lang.Character
+   java.lang.Byte
+   java.lang.Short
+   java.lang.Integer
+   java.lang.Long
+   java.math.BigInteger
+   clojure.lang.Ratio
+   clojure.lang.BigInt
+   java.lang.Double
+   java.lang.Float
+   java.lang.String
+   java.util.Date
+   org.joda.time.DateTime
+   org.joda.time.LocalDate
+   org.joda.time.LocalTime
+   org.joda.time.LocalDateTime
+   java.util.UUID
+   clojure.lang.Keyword
+   clojure.lang.Symbol
+   :list
+   :vector
+   :seq
+   :map
+   :set
+   (class (boolean-array []))
+   (class (byte-array []))
+   (class (char-array []))
+   (class (double-array []))
+   (class (float-array []))
+   (class (int-array []))
+   (class (long-array []))
+   (class (object-array []))
+   (class (short-array []))])
 
 (def ^:dynamic *clj-type-codes* (zipmap *clj-types* (range 0 (count *clj-types*))))
 
