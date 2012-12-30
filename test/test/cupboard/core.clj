@@ -51,15 +51,15 @@
   (let [cb (atom nil)]
     (letfn [(verify-shelf [shelf-name]
               ;; check :login index
-              (is (contains? @((@(:shelves @cb) shelf-name) :index-unique-dbs) :login))
-              (is (not (-> @((@(:shelves @cb) shelf-name) :index-unique-dbs)
+              (is (contains? @(:index-unique-dbs (@(:shelves @cb) shelf-name)) :login))
+              (is (not (-> @(:index-unique-dbs (@(:shelves @cb) shelf-name))
                            :login :sorted-duplicates)))
-              (is (= (-> @((@(:shelves @cb) shelf-name) :index-unique-dbs) :login :name)
+              (is (= (-> @(:index-unique-dbs (@(:shelves @cb) shelf-name)) :login :name)
                      (str shelf-name :login)))
               ;; check :bank-acct index
-              (is (contains? @((@(:shelves @cb) shelf-name) :index-unique-dbs)
+              (is (contains? @(:index-unique-dbs (@(:shelves @cb) shelf-name))
                              :bank-acct))
-              (is (not (-> @((@(:shelves @cb) shelf-name) :index-unique-dbs)
+              (is (not (-> @(:index-unique-dbs (@(:shelves @cb) shelf-name))
                            :bank-acct :sorted-duplicates)))
               ;; check :first-name index
               (is (contains? @(:index-any-dbs (@(:shelves @cb) shelf-name)) :first-name))
@@ -73,7 +73,7 @@
               (is (-> @(:index-any-dbs (@(:shelves @cb) shelf-name))
                       :last-name :sorted-duplicates))
               ;; check :age index
-              (is (contains? @((@(:shelves @cb) shelf-name) :index-any-dbs) :age))
+              (is (contains? @(:index-any-dbs (@(:shelves @cb) shelf-name)) :age))
               (is (-> @(:index-any-dbs (@(:shelves @cb) shelf-name))
                       :age :sorted-duplicates)))]
 
@@ -86,8 +86,8 @@
         (is (= (count @(:shelves @cb)) 1))
         (is (= (:name @(:shelves-db @cb)) *shelves-db-name*))
         (is (contains? @(:shelves @cb) *default-shelf-name*))
-        (is (empty? @((@(:shelves @cb) *default-shelf-name*) :index-unique-dbs)))
-        (is (empty? @((@(:shelves @cb) *default-shelf-name*) :index-any-dbs)))
+        (is (empty? @(:index-unique-dbs (@(:shelves @cb) *default-shelf-name*))))
+        (is (empty? @(:index-any-dbs (@(:shelves @cb) *default-shelf-name*))))
         (is (not (-> (@(:shelves @cb) *default-shelf-name*) :db :sorted-duplicates))))
 
       (testing "writing something to the default shelf"
