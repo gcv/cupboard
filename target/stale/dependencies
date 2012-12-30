@@ -1,1 +1,0 @@
-([:dependencies [[org.clojure/tools.nrepl "0.2.0-beta9" :exclusions [org.clojure/clojure]] [clojure-complete "0.2.1" :exclusions [org.clojure/clojure]] [org.clojure/clojure "1.4.0"] [com.sleepycat/je "5.0.58"] [joda-time "2.1"]]])
