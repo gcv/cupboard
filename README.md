@@ -55,7 +55,7 @@ This example is available in `examples/examples/cupboard/simple.clj`.
 ## Dependencies
 
 * Clojure 1.4.0
-* Leiningen 1.7.0
+* Leiningen
 
 
 
